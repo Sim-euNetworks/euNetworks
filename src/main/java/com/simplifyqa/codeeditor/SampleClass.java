@@ -24,7 +24,11 @@ import java.util.List;
 import java.util.Random;
 import java.util.logging.Logger;
 import org.openqa.selenium.support.Color;
+import com.simplifyqa.pluginbase.plugin.execution.IExecutionLogReporter;
 
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
+import java.io.File;
 public class SampleClass {
     @AutoInjectWebDriver
     private IQAWebDriver driver;
@@ -651,10 +655,52 @@ public class SampleClass {
             store.updateValue(strValue);
             return true;
         } catch (Exception e) {
-            
+
             this.driver.getExecutionLogReporter().error(e.toString());
             return false;
         }
+    }
+
+    private IExecutionLogReporter logReporter;
+    @SyncAction(uniqueId = "MyProject-Sample-040", groupName = "Assertions", objectTemplate = @ObjectTemplate(name = TechnologyType.WEB, description = "This action reads data from pdf"), objectRequired = false)
+    public boolean readFromPdf(String pdfPath, String pageNumber1,String valueToBeCompared,IArgument pdfDataRuntime,IArgument comparedResult) {
+         int pageNumber=Integer.valueOf(pageNumber1);
+      // String result= readPage( filepath , pagen);
+
+
+       String pageText = "";
+
+       try (PDDocument document = PDDocument.load(new File(pdfPath))) {
+
+           if (pageNumber < 1 || pageNumber > document.getNumberOfPages()) {
+               throw new IllegalArgumentException("Invalid page number!");
+           }
+
+           PDFTextStripper stripper = new PDFTextStripper();
+
+           // Set start & end page as same
+           stripper.setStartPage(pageNumber);
+           stripper.setEndPage(pageNumber);
+
+           pageText = stripper.getText(document);
+
+       } catch (Exception e) {
+           e.printStackTrace();
+       }
+
+
+       if(pageText.contains(valueToBeCompared)){
+        comparedResult.updateValue(valueToBeCompared+ " - is present in Base String ");
+        logReporter.info("Verified "+valueToBeCompared+ " is presnt in BaseString "+pageText);
+        pdfDataRuntime.updateValue(pageText);
+        return true;
+    }else{
+        pdfDataRuntime.updateValue(pageText);
+        comparedResult.updateValue(valueToBeCompared+ " - is not present in Base String ");
+        return false; 
+    }
+
+
     }
 }
 
