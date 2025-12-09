@@ -691,7 +691,7 @@ public class SampleClass {
 
        if(pageText.contains(valueToBeCompared)){
         comparedResult.updateValue(valueToBeCompared+ " - is present in Base String ");
-        logReporter.info("Verified "+valueToBeCompared+ " is presnt in BaseString "+pageText);
+        log.info("Verified "+valueToBeCompared+ " is presnt in BaseString "+pageText);
         pdfDataRuntime.updateValue(pageText);
         return true;
     }else{
@@ -702,6 +702,8 @@ public class SampleClass {
 
 
     }
+
+    
 }
 
     

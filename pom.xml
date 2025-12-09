@@ -29,6 +29,11 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
+      <groupId>org.apache.pdfbox</groupId>
+      <artifactId>pdfbox</artifactId>
+      <version>2.0.29</version>
+    </dependency>
+    <dependency>
       <groupId>com.simplifyqa.apiabstract</groupId>
       <artifactId>abstracted-interfaces-api</artifactId>
       <version>1.0</version>
@@ -44,11 +49,6 @@
       <artifactId>abstracted-interfaces</artifactId>
       <version>1.0</version>
       <scope>provided</scope>
-    </dependency>
-    <dependency>
-    <groupId>org.apache.pdfbox</groupId>
-    <artifactId>pdfbox</artifactId>
-    <version>2.0.29</version>
     </dependency>
     <dependency>
       <groupId>commons-io</groupId>
@@ -166,6 +166,29 @@
             </executions>
             <configuration>
               <mainClass>com.simplifyqa.codeeditor.githandler.SyncFromCodeEditor</mainClass>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <!-- Profile for formula sync-->
+    <profile>
+      <id>syncFormula</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>3.1.0</version>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>java</goal>
+                </goals>
+              </execution>
+            </executions>
+            <configuration>
+              <mainClass>com.simplifyqa.codeeditor.githandler.SyncFormula</mainClass>
             </configuration>
           </plugin>
         </plugins>
