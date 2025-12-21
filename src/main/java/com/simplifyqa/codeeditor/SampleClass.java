@@ -25,6 +25,7 @@ import java.util.Random;
 import java.util.logging.Logger;
 import org.openqa.selenium.support.Color;
 import com.simplifyqa.pluginbase.plugin.execution.IExecutionLogReporter;
+import com.simplifyqa.pluginbase.common.enums.BrowserType;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -90,16 +91,23 @@ public class SampleClass {
     @SyncAction(uniqueId="MyProject-Sample-007", groupName="Generic", objectTemplate=@ObjectTemplate(name=TechnologyType.GENERIC, description="This action belongs to GENERIC"))
     public boolean validateTwoParameterswithIgnoreCase(String value1, String value2) {
         try {
-            if (value1.trim().toLowerCase().equalsIgnoreCase(value2.trim().toLowerCase())) {
-                log.info("value1: " + value1 + "value2 :" + value2);
-                return true;
-            }
-            return false;
+            String firstValue = value1.trim().toLowerCase();
+            String secondValue = value2.trim().toLowerCase();
+          if (firstValue.equalsIgnoreCase(secondValue)) {
+            log.info("value1: " + firstValue + "value2 :" + secondValue);
+            return true;
+          }
+          else
+          {
+            String firstValue1 = firstValue.replace('\u00A0', ' ');
+            String secondValue2 = secondValue.replace('\u00A0', ' ');
+            return firstValue1.equals(secondValue2);
+          }
         } catch (Exception e) {
-            log.info("value1: " + value1 + "value2 :" + value2);
-            return false;
+          log.info("value1: " + value1 + "value2 :" + value2);
+          return false;
         }
-    }
+      }
 
     public String getAttributeValue(String name) {
         try {
@@ -702,6 +710,64 @@ public class SampleClass {
 
 
     }
+
+
+
+    @SyncAction(uniqueId = "get file path", groupName = "Assertions",
+        objectTemplate = @ObjectTemplate(name = TechnologyType.WEB,
+        description = "This action retrieves the full file path of the downloaded file"),
+        objectRequired = false)
+public boolean getFileName(IArgument runtime) {
+
+    if (driver.getBrowserType() == BrowserType.CHROME
+                || driver.getBrowserType() == BrowserType.CHROME_HEADLESS) {
+
+            driver.launchUrlAndSwitch("about:blank");
+            driver.launchApplication("chrome://downloads");
+
+            try {
+                String script =
+                        "var manager = document.querySelector('downloads-manager');" +
+                                "var list = manager.shadowRoot.querySelector('#downloadsList');" +
+                                "var item = list.items[0];" +
+                                "return item.filePath || item.file_path || item.file_name || 'Property not found';";
+
+                Object result = driver.executeScript(script);
+
+                if (result != null) {
+                    String filePath = result.toString();
+                    runtime.updateValue(filePath);
+                    return true;
+                }
+            } catch (Exception e) {
+                System.err.println("Error fetching full file path (Chrome): " + e.getMessage());
+            }
+
+        } else if (driver.getBrowserType() == BrowserType.EDGE) {
+
+            driver.launchUrlAndSwitch("about:blank");
+            driver.launchApplication("edge://downloads");
+
+            try {
+                String script =
+                        "var manager = document.querySelector('downloads-manager');" +
+                                "var list = manager.shadowRoot.querySelector('#downloadsList');" +
+                                "var item = list.items[0];" +
+                                "return item.filePath || item.file_path || item.file_name || 'Property not found';";
+
+                Object result = driver.executeScript(script);
+                if (result != null) {
+                    String filePath = result.toString();
+                    runtime.updateValue(filePath);
+                    return true;
+                }
+            } catch (Exception e) {
+                System.err.println("Error fetching full file path (Edge): " + e.getMessage());
+            }
+        }
+    return false;
+    }
+
 
     
 }
