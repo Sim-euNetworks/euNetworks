@@ -768,7 +768,77 @@ public boolean getFileName(IArgument runtime) {
     return false;
     }
 
-
+@SyncAction(uniqueId = "MyProject-Sample-041", groupName = "Web", objectTemplate = @ObjectTemplate(name = TechnologyType.WEB, description = "Verify and Fill the value"))
+  public boolean verifyFiledStoreandPopulateValue() {
+    try {
+      String elementXpath = getAttributeValue("xpath"); // InputXpath
+      String elementXpath1 = getAttributeValue("xpath1"); // Output Xpath;''
+      int a = this.driver.findElements(FindBy.xpath(elementXpath)).size();
+      if (a >= 1) {
+        // table/thead/tr/th[@title='Remaining']/../../following-sibling::tbody/tr/td
+        for (int i = 1; i <= a; i++) {
+          String outputXpath = "(" + elementXpath1 + ")[" + i + "]";
+          String inputXpath = "(" + elementXpath + ")[" + i + "]";
+          // table/thead/tr/th[@title='Remaining']/../../following-sibling::tbody/tr/td
+          String value = this.driver.executeScript(
+              "function getElementByXpath(path) {return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}var a = getElementByXpath(\""
+                  + outputXpath + "\");return a.value;",
+              new Object[0]).toString();
+          String inputValue = this.driver.executeScript(
+              "function getElementByXpath(path) {return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}var a = getElementByXpath(\""
+                  + inputXpath + "\");return a.title;",
+              new Object[0]).toString();
+          if (value.equals("0")) {
+            Double val1 = Double.parseDouble(inputValue);
+            Double res1 = val1 / 2;
+            String mainRes = Double.toString(res1);
+            this.driver.findElement(FindBy.xpath(outputXpath)).clearText();
+            this.driver.findElement(FindBy.xpath(outputXpath)).enterText(mainRes);
+          } else {
+            this.driver.findElement(FindBy.xpath(outputXpath)).clearText();
+            this.driver.findElement(FindBy.xpath(outputXpath)).enterText(inputValue);
+          }
+        }
+ 
+      }
+      return true;
+    } catch (Exception e) {
+      // TODO: handle exception
+      return false;
+    }
+  }
+ 
+  @SyncAction(uniqueId = "MyProject-Sample-042", groupName = "Web", objectTemplate = @ObjectTemplate(name = TechnologyType.WEB, description = "verify Staus Bar Field"))
+  public boolean verifyStausBarField(String... replacable) {
+    try {
+      String elementXpath = getAttributeValue("xpath"); // InputXpath
+      int a = this.driver.findElements(FindBy.xpath(elementXpath)).size();
+      int len = replacable.length;
+      if (a >= 1 && a == len) {
+        for (int i = 0; i < len; i++) {
+          int uiIndex = i + 1;
+          String input = replacable[i];
+          String updatedXpath = "(" + elementXpath + ")[" + uiIndex + "]";
+          String value = this.driver.executeScript(
+              "function getElementByXpath(path) {return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}var a = getElementByXpath(\""
+                  + updatedXpath + "\");return a.title;",
+              new Object[0]).toString();
+          if (input.equalsIgnoreCase(value)) {
+            return true;
+          } else {
+            return false;
+          }
+        }
+        return true;
+      } else {
+        return false;
+      }
+ 
+    } catch (Exception e) {
+      // TODO: handle exception
+      return false;
+    }
+  }
     
 }
 
