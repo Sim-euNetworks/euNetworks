@@ -767,39 +767,62 @@ public boolean getFileName(IArgument runtime) {
         }
     return false;
     }
-
+    public String generateUnquieNumber() {
+        String uniqueNumber = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyMMddHHmmssSS"));
+        return uniqueNumber;
+      }
+    private String getTitleByXpath(String xpath) {
+        String script =
+            "function getElementByXpath(path) {" +
+            "return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}" +
+            "var el = getElementByXpath(\"" + xpath + "\");" +
+            "return el ? el.title : '';";
+     
+        Object result = this.driver.executeScript(script);
+        return result != null ? result.toString() : "";
+    } 
+    
 @SyncAction(uniqueId = "MyProject-Sample-041", groupName = "Web", objectTemplate = @ObjectTemplate(name = TechnologyType.WEB, description = "Verify and Fill the value"))
-  public boolean verifyFiledStoreandPopulateValue() {
+public Boolean verifyFiledStoreandPopulateValue() {
     try {
-      String elementXpath = getAttributeValue("xpath"); // InputXpath
-      String elementXpath1 = getAttributeValue("xpath1"); // Output Xpath;''
-      int a = this.driver.findElements(FindBy.xpath(elementXpath)).size();
+      String Received_previously = getAttributeValue("Received_previously");// Received previously
+      String Remaining = getAttributeValue("Remaining");
+      String Received_now = getAttributeValue("Received_now");
+      String SerialNumber = getAttributeValue("SerialNumber");
+      int a = this.driver.findElements(FindBy.xpath(Remaining)).size();
       if (a >= 1) {
         // table/thead/tr/th[@title='Remaining']/../../following-sibling::tbody/tr/td
         for (int i = 1; i <= a; i++) {
-          String outputXpath = "(" + elementXpath1 + ")[" + i + "]";
-          String inputXpath = "(" + elementXpath + ")[" + i + "]";
+          String serialNum = generateUnquieNumber();
+          String updated_Received_nowXpath = "(" + Received_now + ")[" + i + "]";
+          String updated_RemainingXpath = "(" + Remaining + ")[" + i + "]";
+          String Updated_ReceivedpreviouslyXpath = "(" + Received_previously + ")[" + i + "]";
+          String updated_SerialNumber = "(" + SerialNumber + ")[" + i + "]";
+          int countSerialNumber = this.driver.findElements(FindBy.xpath(updated_SerialNumber)).size();
           // table/thead/tr/th[@title='Remaining']/../../following-sibling::tbody/tr/td
-          String value = this.driver.executeScript(
-              "function getElementByXpath(path) {return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}var a = getElementByXpath(\""
-                  + outputXpath + "\");return a.value;",
-              new Object[0]).toString();
-          String inputValue = this.driver.executeScript(
-              "function getElementByXpath(path) {return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}var a = getElementByXpath(\""
-                  + inputXpath + "\");return a.title;",
-              new Object[0]).toString();
-          if (value.equals("0")) {
-            Double val1 = Double.parseDouble(inputValue);
+          // textarea[contains(@name,'input')]
+          String remainingValue = getTitleByXpath(updated_RemainingXpath);
+          String receivedPreviouslyValue = getTitleByXpath(Updated_ReceivedpreviouslyXpath);
+          this.driver.findElement(FindBy.xpath(updated_Received_nowXpath)).clearText();
+          if (receivedPreviouslyValue.equals("0")) {
+            Double val1 = Double.parseDouble(remainingValue);
             Double res1 = val1 / 2;
             String mainRes = Double.toString(res1);
-            this.driver.findElement(FindBy.xpath(outputXpath)).clearText();
-            this.driver.findElement(FindBy.xpath(outputXpath)).enterText(mainRes);
+ 
+            this.driver.findElement(FindBy.xpath(updated_Received_nowXpath)).enterText(mainRes);
           } else {
-            this.driver.findElement(FindBy.xpath(outputXpath)).clearText();
-            this.driver.findElement(FindBy.xpath(outputXpath)).enterText(inputValue);
+            this.driver.findElement(FindBy.xpath(updated_Received_nowXpath)).enterText(remainingValue);
+ 
+            if (countSerialNumber == 1) {
+              this.driver.findElement(FindBy.xpath(updated_SerialNumber)).enterText(serialNum);
+            }
+          }
+          Thread.sleep(2000);
+          if (countSerialNumber == 1) {
+            this.driver.findElement(FindBy.xpath(updated_SerialNumber)).enterText(serialNum);
           }
         }
- 
+        Thread.sleep(2000);
       }
       return true;
     } catch (Exception e) {
@@ -809,27 +832,31 @@ public boolean getFileName(IArgument runtime) {
   }
  
   @SyncAction(uniqueId = "MyProject-Sample-042", groupName = "Web", objectTemplate = @ObjectTemplate(name = TechnologyType.WEB, description = "verify Staus Bar Field"))
-  public boolean verifyStausBarField(String... replacable) {
+  public boolean verifyStausBarField(String valuetoCheck) {
+    boolean flag = false;
     try {
       String elementXpath = getAttributeValue("xpath"); // InputXpath
       int a = this.driver.findElements(FindBy.xpath(elementXpath)).size();
-      int len = replacable.length;
+      String[] Options = valuetoCheck.split(",");
+      int len = Options.length;
+      //int len = replacable.length;
       if (a >= 1 && a == len) {
         for (int i = 0; i < len; i++) {
           int uiIndex = i + 1;
-          String input = replacable[i];
+          String input = Options[i];
           String updatedXpath = "(" + elementXpath + ")[" + uiIndex + "]";
           String value = this.driver.executeScript(
               "function getElementByXpath(path) {return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}var a = getElementByXpath(\""
                   + updatedXpath + "\");return a.title;",
               new Object[0]).toString();
           if (input.equalsIgnoreCase(value)) {
-            return true;
+            flag = true;
           } else {
+            flag = false;
             return false;
           }
         }
-        return true;
+        return flag;
       } else {
         return false;
       }
