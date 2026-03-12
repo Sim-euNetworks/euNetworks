@@ -866,7 +866,141 @@ public Boolean verifyFiledStoreandPopulateValue() {
       return false;
     }
   }
-    
+  @SyncAction(uniqueId = "MyProject-Sample-043", groupName = "Generic", objectTemplate = @ObjectTemplate(name = TechnologyType.GENERIC, description = "Generates Ist day of the month date"))
+    public boolean getFirstDayAfterAddingMonths(String monthsToAdd,String format, IArgument value) {
+ 
+        try
+        {
+          int additionalMonth = Integer.parseInt(monthsToAdd);
+          LocalDate currentDate = LocalDate.now();
+          // Add months
+          LocalDate updatedDate = currentDate.plusMonths(additionalMonth);
+          LocalDate firstDayOfMonth = updatedDate.withDayOfMonth(1);
+          DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format);
+          String expectedDate =  firstDayOfMonth.format(formatter);
+          log.info("Generated Date in GMT: " + expectedDate);
+          value.updateValue(expectedDate);
+          return true;
+        }
+        catch(DateTimeParseException e) {
+          return false;
+        }
+    }
+
+    @SyncAction(uniqueId="MyProject-Sample-044", groupName="Generic", objectTemplate=@ObjectTemplate(name=TechnologyType.GENERIC, description="This action belongs to GENERIC"))
+    public boolean validateTwoDatesswithFormat(String value1, String value2, String format) {
+    try {
+
+        String firstValue = value1.trim().replace('\u00A0', ' ');
+        String secondValue = value2.trim().replace('\u00A0', ' ');
+
+        try {
+            firstValue = firstValue.replace("/", ".").replace("-", ".");
+            secondValue = secondValue.replace("/", ".").replace("-", ".");
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format);
+
+            LocalDate date1 = LocalDate.parse(firstValue, formatter);
+            LocalDate date2 = LocalDate.parse(secondValue, formatter);
+
+            firstValue = date1.format(formatter);
+            secondValue = date2.format(formatter);
+
+        } catch (DateTimeParseException e) {
+            log.info("Date parsing failed. Proceeding with string comparison.");
+        }
+
+        if (firstValue.equalsIgnoreCase(secondValue)) {
+            log.info("value1: " + firstValue + " value2 :" + secondValue);
+            return true;
+        } else {
+            return firstValue.equalsIgnoreCase(secondValue);
+        }
+
+        } catch (Exception e) {
+            log.info("value1: " + value1 + " value2 :" + value2);
+            return false;
+        }
+    }
+        
+    @SyncAction(uniqueId = "MyProject-Sample-045", groupName = "Web", objectTemplate = @ObjectTemplate(name = TechnologyType.WEB, description = "Validate Value"))
+    public boolean validateValue(String valueToValidate)
+    {
+        try
+        { 
+            double newValue = 0.0;
+            String currentxpath = getAttributeValue("xpath");
+            String en = this.driver.executeScript(
+                "function getElementByXpath(path) {return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}var a = getElementByXpath(\""
+                    + currentxpath + "\");return a.value;",
+                new Object[0]).toString();
+                double value = Double.parseDouble(en);
+                BigDecimal bd = new BigDecimal(newValue += value).setScale(2, RoundingMode.HALF_UP);
+                String strValue = bd.toPlainString();
+                if(valueToValidate.equals(strValue))
+                {
+                return true;
+                }
+            return false;
+        }
+        catch(Exception e)
+        {
+        return false;
+        }
+    }
+    @SyncAction(uniqueId = "MyProject-Sample-046", groupName = "Web", objectTemplate = @ObjectTemplate(name = TechnologyType.WEB, description = "Validate Gross Total Value"))
+    public boolean validateGrossTotalValue(String netValue, String taxValue){
+        try{
+            String objectXpath = getAttributeValue("xpath");
+            String en = this.driver.executeScript(
+                "function getElementByXpath(path) {return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}var a = getElementByXpath(\""
+                    + objectXpath + "\");return a.value;",
+                    new Object[0]).toString();
+            String GrossTotal = en.replaceAll("(USD|EUR)", "").replaceAll(",", ".").trim();
+            double value = Double.parseDouble(GrossTotal);
+            double NetValue = Double.parseDouble(netValue);
+            double TaxValue = Double.parseDouble(taxValue);
+            double CalculatedGrossValue = NetValue + TaxValue;
+            if(CalculatedGrossValue == value){
+                log.info("Net Value: "+netValue+ " Tax Value: "+taxValue+" Gross Total Value: "+CalculatedGrossValue);
+                return true;
+            }
+            return false;
+        }catch(Exception e){
+            return false;
+        }
+    }
+
+    @SyncAction(uniqueId = "MyProject-Sample-047", groupName = "Web", objectTemplate = @ObjectTemplate(name = TechnologyType.WEB, description = "Verify if Query stage is changed to Completed"))
+    public boolean verifyIfQueryStageIsCompleted() {
+      boolean bStatus = false;
+      try {
+        String elementXpath = this.getAttributeValue("xpath");//td[text()='Completed']
+        String Jobs = this.getAttributeValue("jobXpath");
+        String searchedJobHeader = "//h2[contains(text(),'Selected job:')]";
+        String availableJobsHeader = "//td[@class='pbTitle']//h2[text()='Available jobs']";
+        long startTime = System.currentTimeMillis();
+        long maxDuration = 300000L;
+        long interval = 20000L;
+        while (System.currentTimeMillis() - startTime < maxDuration) {
+          int count = this.driver.findElements(FindBy.xpath((String) elementXpath)).size();
+          if (count != 0) {
+            return true;
+          }
+          this.driver.refresh();
+          Thread.sleep(interval);
+          this.driver.findElement(FindBy.xpath((String) availableJobsHeader)).scrollIntoElement();
+          Thread.sleep(1000);
+          this.driver.findElement(FindBy.xpath((String) Jobs)).click();
+          Thread.sleep(2000);
+          this.driver.findElement(FindBy.xpath((String) searchedJobHeader)).scrollIntoElement();
+        }
+      } catch (Exception e) {
+        bStatus = false;
+      }
+      return bStatus;
+    }
+
 }
 
     
