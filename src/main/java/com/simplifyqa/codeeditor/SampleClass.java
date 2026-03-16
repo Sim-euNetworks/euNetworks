@@ -952,23 +952,44 @@ public Boolean verifyFiledStoreandPopulateValue() {
     public boolean validateGrossTotalValue(String netValue, String taxValue){
         try{
             String objectXpath = getAttributeValue("xpath");
-            String en = this.driver.executeScript(
+            String GrossTotal = this.driver.executeScript(
                 "function getElementByXpath(path) {return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}var a = getElementByXpath(\""
                     + objectXpath + "\");return a.value;",
                     new Object[0]).toString();
-            String GrossTotal = en.replaceAll("(USD|EUR)", "").replaceAll(",", ".").trim();
-            double value = Double.parseDouble(GrossTotal);
-            double NetValue = Double.parseDouble(netValue);
-            double TaxValue = Double.parseDouble(taxValue);
+            //String GrossTotal = en.replaceAll("(USD|EUR)", "").replaceAll(",", ".").trim();
+            double value = parseCurrency(GrossTotal);
+            double NetValue = parseCurrency(netValue);
+            double TaxValue = parseCurrency(taxValue);
             double CalculatedGrossValue = NetValue + TaxValue;
-            if(CalculatedGrossValue == value){
+            if(Math.abs(CalculatedGrossValue - value) < 0.01){
                 log.info("Net Value: "+netValue+ " Tax Value: "+taxValue+" Gross Total Value: "+CalculatedGrossValue);
                 return true;
             }
             return false;
         }catch(Exception e){
+            e.printStackTrace();
             return false;
         }
+    }
+
+    public double parseCurrency(String value) {
+
+        value = value.replaceAll("(USD|EUR)", "").trim();
+    
+        if(value.contains(",") && value.contains(".")){
+            if(value.lastIndexOf(",") > value.lastIndexOf(".")){
+                // European format
+                value = value.replace(".", "").replace(",", ".");
+            }else{
+                // US format
+                value = value.replace(",", "");
+            }
+        }
+        else if(value.contains(",")){
+            value = value.replace(",", ".");
+        }
+    
+        return Double.parseDouble(value);
     }
 
     @SyncAction(uniqueId = "MyProject-Sample-047", groupName = "Web", objectTemplate = @ObjectTemplate(name = TechnologyType.WEB, description = "Verify if Query stage is changed to Completed"))
