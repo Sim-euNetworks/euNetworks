@@ -1,6 +1,7 @@
 package com.simplifyqa.codeeditor;
 
 import com.simplifyqa.abstraction.driver.IQAWebDriver;
+import com.simplifyqa.abstraction.element.IQAWebElement;
 import com.simplifyqa.pluginbase.argument.IArgument;
 import com.simplifyqa.pluginbase.codeeditor.annotations.AutoInjectCurrentObject;
 import com.simplifyqa.pluginbase.codeeditor.annotations.AutoInjectWebDriver;
@@ -1020,6 +1021,160 @@ public Boolean verifyFiledStoreandPopulateValue() {
         bStatus = false;
       }
       return bStatus;
+    }
+
+    @SyncAction(uniqueId = "validate-table-reference-locations-strict-order",groupName = "Assertions",objectTemplate = @ObjectTemplate(name = TechnologyType.WEB,description = "Validate table rows in strict order using Reference, Location A and Location Z"))
+    public boolean validateTableRowsStrictOrder(String expectedRowsInput) {
+        try {
+            String tableXpath = this.getAttributeValue("xpath");
+            if (tableXpath == null || tableXpath.trim().isEmpty()) {
+                log.info("Table xpath is empty.");
+                this.driver.getExecutionLogReporter().info("Table xpath is empty.");
+                return false;
+            }
+            if (expectedRowsInput == null || expectedRowsInput.trim().isEmpty()) {
+                log.info("Expected input is empty.");
+                this.driver.getExecutionLogReporter().info("Expected input is empty.");
+                return false;
+            }
+            // Parse expected rows:
+            // Reference|Description|Location A|Location Z#Reference|Description|Location A|Location Z
+            String[] expectedRows = expectedRowsInput.split("#", -1);
+            List<String[]> parsedExpected = new ArrayList<String[]>();
+            for (int i = 0; i < expectedRows.length; i++) {
+                String row = expectedRows[i] == null ? "" : expectedRows[i].trim();
+                if (row.isEmpty()) {
+                    continue;
+                }
+                // -1 keeps empty tokens (important for blank Description/Location A/Location Z)
+                String[] cells = row.split("\\|", -1);
+                if (cells.length != 4) {
+                    log.info("Invalid expected row format at index " + (i + 1)
+                            + ". Expected: Reference|Description|Location A|Location Z, Actual: " + row);
+                    this.driver.getExecutionLogReporter().info("Invalid expected row format at index " + (i + 1)
+                            + ". Expected: Reference|Description|Location A|Location Z, Actual: " + row);
+                    return false;
+                }
+                String reference = cells[0] == null ? "" : cells[0].replace('\u00A0', ' ').replaceAll("\\s+", " ").trim();
+                String description = cells[1] == null ? "" : cells[1].replace('\u00A0', ' ').replaceAll("\\s+", " ").trim();
+                String locationA = cells[2] == null ? "" : cells[2].replace('\u00A0', ' ').replaceAll("\\s+", " ").trim();
+                String locationZ = cells[3] == null ? "" : cells[3].replace('\u00A0', ' ').replaceAll("\\s+", " ").trim();
+                if (reference.isEmpty()) {
+                    log.info("Reference cannot be empty in expected row " + (i + 1));
+                    this.driver.getExecutionLogReporter().info("Reference cannot be empty in expected row " + (i + 1));
+                    return false;
+                }
+                parsedExpected.add(new String[]{reference, description, locationA, locationZ});
+            }
+            if (parsedExpected.isEmpty()) {
+                log.info("No valid expected rows found.");
+                this.driver.getExecutionLogReporter().info("No valid expected rows found.");
+                return false;
+            }
+            // Only actual data rows (ignore footer total row)
+            String rowXpath = tableXpath + "//tbody//c-design-tool-table-row";
+            List<IQAWebElement> actualRows = this.driver.findElements(FindBy.xpath(rowXpath));
+            if (actualRows == null || actualRows.isEmpty()) {
+                log.info("No actual data rows found in table.");
+                this.driver.getExecutionLogReporter().info("No actual data rows found in table.");
+                return false;
+            }
+            // Strict order/count check
+            if (actualRows.size() != parsedExpected.size()) {
+                log.info("Row count mismatch. Expected: " + parsedExpected.size() + ", Actual: " + actualRows.size());
+                this.driver.getExecutionLogReporter().info("Row count mismatch. Expected: " + parsedExpected.size() + ", Actual: " + actualRows.size());
+                return false;
+            }
+            String cellTextScript =
+                    "function getElementByXpath(path){return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}" +
+                    "var el = getElementByXpath(arguments[0]);" +
+                    "if(!el) return '';" +
+                    "return (el.innerText || el.textContent || '').replace(/\\u00A0/g,' ').replace(/\\s+/g,' ').trim();";
+            for (int i = 1; i <= actualRows.size(); i++) {
+                String baseRowXpath = "(" + rowXpath + ")[" + i + "]";
+                String refXpath = baseRowXpath + "//td[@data-label='Reference']";
+                String descXpath = baseRowXpath + "//td[@data-label='Description']";
+                String locAXpath = baseRowXpath + "//td[@data-label='Location A']";
+                String locZXpath = baseRowXpath + "//td[@data-label='Location Z']";
+                String actualReference = String.valueOf(this.driver.executeScript(cellTextScript, refXpath));
+                String actualDescription = String.valueOf(this.driver.executeScript(cellTextScript, descXpath));
+                String actualLocationA = String.valueOf(this.driver.executeScript(cellTextScript, locAXpath));
+                String actualLocationZ = String.valueOf(this.driver.executeScript(cellTextScript, locZXpath));
+                actualReference = actualReference.replace('\u00A0', ' ').replaceAll("\\s+", " ").trim();
+                actualDescription = actualDescription.replace('\u00A0', ' ').replaceAll("\\s+", " ").trim();
+                actualLocationA = actualLocationA.replace('\u00A0', ' ').replaceAll("\\s+", " ").trim();
+                actualLocationZ = actualLocationZ.replace('\u00A0', ' ').replaceAll("\\s+", " ").trim();
+                String expectedReference = parsedExpected.get(i - 1)[0];
+                String expectedDescription = parsedExpected.get(i - 1)[1];
+                String expectedLocationA = parsedExpected.get(i - 1)[2];
+                String expectedLocationZ = parsedExpected.get(i - 1)[3];
+                // Reference: contains (case-sensitive), as requested
+                if (!actualReference.contains(expectedReference)) {
+                    log.info("Row " + i + " Reference mismatch. Expected contains: [" + expectedReference
+                            + "] Actual: [" + actualReference + "]");
+                    this.driver.getExecutionLogReporter().info("Row " + i + " Reference mismatch. Expected contains: [" + expectedReference
+                            + "] Actual: [" + actualReference + "]");
+                    return false;
+                }
+                // Description:
+                // - expected empty => actual must be empty
+                // - expected non-empty => actual should contain expected
+                if (expectedDescription.isEmpty()) {
+                    if (!actualDescription.isEmpty()) {
+                        log.info("Row " + i + " Description mismatch. Expected empty, Actual: [" + actualDescription + "]");
+                        this.driver.getExecutionLogReporter().info("Row " + i + " Description mismatch. Expected empty, Actual: [" + actualDescription + "]");
+                        return false;
+                    }
+                } else {
+                    if (!actualDescription.contains(expectedDescription)) {
+                        log.info("Row " + i + " Description mismatch. Expected contains: [" + expectedDescription
+                                + "] Actual: [" + actualDescription + "]");
+                        this.driver.getExecutionLogReporter().info("Row " + i + " Description mismatch. Expected contains: [" + expectedDescription
+                                + "] Actual: [" + actualDescription + "]");
+                        return false;
+                    }
+                }
+                // Location A
+                if (expectedLocationA.isEmpty()) {
+                    if (!actualLocationA.isEmpty()) {
+                        log.info("Row " + i + " Location A mismatch. Expected empty, Actual: [" + actualLocationA + "]");
+                        this.driver.getExecutionLogReporter().info("Row " + i + " Location A mismatch. Expected empty, Actual: [" + actualLocationA + "]");
+                        return false;
+                    }
+                } else {
+                    if (!actualLocationA.contains(expectedLocationA)) {
+                        log.info("Row " + i + " Location A mismatch. Expected contains: [" + expectedLocationA
+                                + "] Actual: [" + actualLocationA + "]");
+                        this.driver.getExecutionLogReporter().info("Row " + i + " Location A mismatch. Expected contains: [" + expectedLocationA
+                                + "] Actual: [" + actualLocationA + "]");
+                        return false;
+                    }
+                }
+                // Location Z
+                if (expectedLocationZ.isEmpty()) {
+                    if (!actualLocationZ.isEmpty()) {
+                        log.info("Row " + i + " Location Z mismatch. Expected empty, Actual: [" + actualLocationZ + "]");
+                        this.driver.getExecutionLogReporter().info("Row " + i + " Location Z mismatch. Expected empty, Actual: [" + actualLocationZ + "]");
+                        return false;
+                    }
+                } else {
+                    if (!actualLocationZ.contains(expectedLocationZ)) {
+                        log.info("Row " + i + " Location Z mismatch. Expected contains: [" + expectedLocationZ
+                                + "] Actual: [" + actualLocationZ + "]");
+                        this.driver.getExecutionLogReporter().info("Row " + i + " Location Z mismatch. Expected contains: [" + expectedLocationZ
+                                + "] Actual: [" + actualLocationZ + "]");
+                        return false;
+                    }
+                }
+            }
+            log.info("Strict table validation passed for Reference, Description, Location A and Location Z.");
+            this.driver.getExecutionLogReporter().info("Strict table validation passed for Reference, Description, Location A and Location Z.");
+            return true;
+        } catch (Exception e) {
+            log.info("Error while validating table rows in strict order.");
+            this.driver.getExecutionLogReporter().error("Error while validating table rows in strict order.");
+            return false;
+        }
     }
 
 }
