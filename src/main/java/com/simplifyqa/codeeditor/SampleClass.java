@@ -13,6 +13,7 @@ import com.simplifyqa.pluginbase.plugin.annotations.ObjectTemplate;
 import com.simplifyqa.web.base.search.FindBy;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.DecimalFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -22,12 +23,14 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 import java.util.logging.Logger;
 import org.openqa.selenium.support.Color;
 import com.simplifyqa.pluginbase.plugin.execution.IExecutionLogReporter;
 import com.simplifyqa.pluginbase.common.enums.BrowserType;
-
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import java.io.File;
@@ -60,8 +63,9 @@ public class SampleClass {
     }
 
     @SyncAction(uniqueId="MyProject-Sample-004", groupName="Generic", objectTemplate=@ObjectTemplate(name=TechnologyType.GENERIC, description="This action belongs to GENERIC"))
-    public boolean customAddition(int ... ints) {
+    public boolean customAddition(String ... ints) {
         this.driver.getGenericMethods().additionOfValues(ints);
+        // this.driver.getGenericMethods().additionOfValues(ints);
         log.info("addition of values performed");
         return true;
     }
@@ -230,6 +234,8 @@ public class SampleClass {
     public boolean verifyIfOpportunityStageIsClosed() {
         boolean bStatus = false;
         try {
+            //Object obj = this.driver.getConfiguration().getCustomConfig().get("EXIST_TIME_OUT");
+            //long timerValue = (Long) obj;
             String elementXpath = this.getAttributeValue("xpath");
             long startTime = System.currentTimeMillis();
             long maxDuration = 180000L;
@@ -586,19 +592,35 @@ public class SampleClass {
     }
 
     @SyncAction(uniqueId="MyProject-Sample-035", groupName="Web", objectTemplate=@ObjectTemplate(name=TechnologyType.WEB, description="Addition of Multiple Values"))
-    public boolean addMultipleValues(IArgument store, String ... replacable) {
+    public boolean addMultipleValues(IArgument store, String... replacable) {
         try {
-            double newValue = 0.0;
-            String strValue = "null";
-            for (int i = 0; i < replacable.length; ++i) {
-                String cleaned = replacable[i].replaceAll("(USD|EUR)", "").replaceAll("\\s+", " ").trim();
-                double value = Double.parseDouble(cleaned);
-                BigDecimal bd = new BigDecimal(newValue += value).setScale(2, RoundingMode.HALF_UP);
-                strValue = bd.toPlainString();
-                System.out.println("Using BigDecimal: " + strValue);
+            BigDecimal total = BigDecimal.ZERO;
+     
+            for (String input : replacable) {
+                String cleaned = input
+                        .replaceAll("(USD|EUR)", "")
+                        .replaceAll(",", "") // remove existing commas
+                        .replaceAll("\\s+", " ")
+                        .trim();
+     
+                if (cleaned == null || cleaned.isEmpty()) {
+                    continue;
+                }
+     
+                BigDecimal value = new BigDecimal(cleaned);
+                total = total.add(value);
             }
-            store.updateValue(strValue);
+     
+            // Ensure 2 decimal places
+            total = total.setScale(2, RoundingMode.HALF_UP);
+            DecimalFormat df = new DecimalFormat("#,##0.00");
+            String formattedValue = df.format(total);
+     
+            System.out.println("Formatted Value: " + formattedValue);
+     
+            store.updateValue(formattedValue);
             return true;
+     
         } catch (Exception e) {
             this.driver.getExecutionLogReporter().error(e.toString());
             return false;
@@ -643,28 +665,52 @@ public class SampleClass {
     @SyncAction(uniqueId="MyProject-Sample-038", groupName="Web", objectTemplate=@ObjectTemplate(name=TechnologyType.WEB, description="Addition of Filed Values"))
     public boolean addMultipleFieldValues(String elementPro, IArgument store) {
         try {
-            double newValue = 0.0;
-            String strValue = "null";
+            BigDecimal total = BigDecimal.ZERO;
+
             String elementXpath = this.getAttributeValue("xpath");
-            int len = this.driver.findElements(FindBy.xpath((String)elementXpath)).size();
+            int len = this.driver.findElements(FindBy.xpath((String) elementXpath)).size();
+
             if (len >= 1) {
                 for (int i = 1; i <= len; ++i) {
+
                     String updatedXpath = "(" + elementXpath + ")[" + i + "]";
-                    String en = this.driver.executeScript("function getElementByXpath(path) {return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}var a = getElementByXpath(\"" + updatedXpath + "\");return a." + elementPro + ";", new Object[0]).toString();
+
+                    String en = this.driver.executeScript(
+                            "function getElementByXpath(path) {return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}var a = getElementByXpath(\""
+                                    + updatedXpath + "\");return a." + elementPro + ";",
+                            new Object[0]
+                    ).toString();
+
                     log.info("Stored Attribute Value : " + en);
-                    String cleaned = en.replaceAll("(USD|EUR|,)", "").replaceAll("\\s+", " ").trim();
-                    double value = Double.parseDouble(cleaned);
-                    BigDecimal bd = new BigDecimal(newValue += value).setScale(2, RoundingMode.HALF_UP);
-                    strValue = bd.toPlainString();
-                    System.out.println("Using BigDecimal: " + strValue);
+
+                    String cleaned = en
+                            .replaceAll("(USD|EUR)", "")
+                            .replaceAll(",", "") // remove commas before parsing
+                            .replaceAll("\\s+", " ")
+                            .trim();
+
+                    if (!cleaned.isEmpty()) {
+                        BigDecimal value = new BigDecimal(cleaned);
+                        total = total.add(value);
+                    }
                 }
             } else {
                 return false;
             }
-            store.updateValue(strValue);
-            return true;
-        } catch (Exception e) {
 
+            // Round to 2 decimal places
+            total = total.setScale(2, RoundingMode.HALF_UP);
+
+            // Format to 1,112.00 style
+            DecimalFormat df = new DecimalFormat("#,##0.00");
+            String formattedValue = df.format(total);
+
+            System.out.println("Formatted Value: " + formattedValue);
+
+            store.updateValue(formattedValue);
+            return true;
+
+        } catch (Exception e) {
             this.driver.getExecutionLogReporter().error(e.toString());
             return false;
         }
@@ -703,16 +749,13 @@ public class SampleClass {
         log.info("Verified "+valueToBeCompared+ " is presnt in BaseString "+pageText);
         pdfDataRuntime.updateValue(pageText);
         return true;
-    }else{
-        pdfDataRuntime.updateValue(pageText);
-        comparedResult.updateValue(valueToBeCompared+ " - is not present in Base String ");
-        return false; 
+        }else{
+            pdfDataRuntime.updateValue(pageText);
+            comparedResult.updateValue(valueToBeCompared+ " - is not present in Base String ");
+            return false; 
+        }
+
     }
-
-
-    }
-
-
 
     @SyncAction(uniqueId = "get file path", groupName = "Assertions",
         objectTemplate = @ObjectTemplate(name = TechnologyType.WEB,
@@ -923,6 +966,8 @@ public Boolean verifyFiledStoreandPopulateValue() {
             return false;
         }
     }
+
+    
         
     @SyncAction(uniqueId = "MyProject-Sample-045", groupName = "Web", objectTemplate = @ObjectTemplate(name = TechnologyType.WEB, description = "Validate Value"))
     public boolean validateValue(String valueToValidate)
@@ -935,12 +980,16 @@ public Boolean verifyFiledStoreandPopulateValue() {
                 "function getElementByXpath(path) {return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}var a = getElementByXpath(\""
                     + currentxpath + "\");return a.value;",
                 new Object[0]).toString();
-                double value = Double.parseDouble(en);
+                //double value = Double.parseDouble(en);
+                double value = parseCurrency(en);
+                double test = parseCurrency(valueToValidate);
+                //BigDecimal valueBig = new BigDecimal(newValue += test).setScale(2, RoundingMode.HALF_UP);
+                String expectedValue = BigDecimal.valueOf(test).toPlainString();
                 BigDecimal bd = new BigDecimal(newValue += value).setScale(2, RoundingMode.HALF_UP);
                 String strValue = bd.toPlainString();
-                if(valueToValidate.equals(strValue))
+                if(expectedValue.equals(strValue) || expectedValue.contains(strValue))
                 {
-                return true;
+                    return true;
                 }
             return false;
         }
@@ -1177,6 +1226,639 @@ public Boolean verifyFiledStoreandPopulateValue() {
         }
     }
 
+    @SyncAction(uniqueId="MyProject-Sample-048", groupName="Generic", objectTemplate=@ObjectTemplate(name=TechnologyType.GENERIC, description="This action belongs to GENERIC"))
+    public boolean validateTwoDatesswithFormat(String value1, String value2) {
+        try {
+            LocalDate date1 = parseDateFlexible(value1);
+            LocalDate date2 = parseDateFlexible(value2);
+
+            if (date1 != null && date2 != null) {
+                return date1.isEqual(date2);
+            }
+
+            // fallback (string compare)
+            return value1.trim().equalsIgnoreCase(value2.trim());
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+  // 🔹 Flexible parser (supports multiple formats)
+    public LocalDate parseDateFlexible(String value) {
+        if (value == null || value.trim().isEmpty()) return null;
+
+        String cleaned = value.trim().replace('\u00A0', ' ');
+
+        String[] formats = {
+                "dd-MMM-yyyy",   // 07-May-2026
+                "dd MMM yyyy",   // 07 May 2026
+                "dd.MM.yyyy",    // 07.05.2026
+                "dd/MM/yyyy",    // 07/05/2026
+                "dd-MM-yyyy"     // 07-05-2026
+        };
+
+        for (String fmt : formats) {
+            try {
+                DateTimeFormatter formatter = fmt.contains("MMM")
+                        ? DateTimeFormatter.ofPattern(fmt, Locale.ENGLISH)
+                        : DateTimeFormatter.ofPattern(fmt);
+
+                String normalized = fmt.contains("MMM")
+                        ? cleaned
+                        : cleaned.replace("/", ".").replace("-", ".");
+
+                return LocalDate.parse(normalized, formatter);
+
+            } catch (DateTimeParseException ignored) {
+            }
+        }
+
+        return null;
+    }
+
+    @SyncAction(uniqueId = "MyProject-Sample-049", groupName = "Web", objectTemplate = @ObjectTemplate(name = TechnologyType.WEB, description = "Validate Gross Total Value"))
+    public boolean verifyGreaterValue(String value, String expectedInput) {
+        try {
+            BigDecimal inputValue = new BigDecimal(value.replace(",", "").trim());
+            BigDecimal expectedValue = new BigDecimal(expectedInput.replace(",", "").trim());
+
+            return inputValue.compareTo(expectedValue) > 0;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    @SyncAction(
+        uniqueId = "validate-column-value-all-rows",
+        groupName = "Web",
+        objectTemplate = @ObjectTemplate(
+                name = TechnologyType.WEB,
+                description = "Validate that all rows in the given column match the expected value"
+        )
+    )
+    public boolean validateColumnValueAllRows(String columnName, String expectedValue) {
+        try {
+            String tableXpath = this.getAttributeValue("xpath");
+
+            if (tableXpath == null || tableXpath.trim().isEmpty()) {
+                log.info("Table xpath is empty.");
+                return false;
+            }
+
+            if (columnName == null || columnName.trim().isEmpty()) {
+                log.info("Column name is empty.");
+                return false;
+            }
+
+            if (expectedValue == null) {
+                log.info("Expected value is null.");
+                return false;
+            }
+
+            String normalizedColumn = columnName.replace('\u00A0', ' ').replaceAll("\\s+", " ").trim();
+            String normalizedExpected = expectedValue.replace('\u00A0', ' ').replaceAll("\\s+", " ").trim();
+
+            // All data rows in tbody (ignore header row)
+            String rowXpath = tableXpath + "//tbody//tr[@data-row-number]";
+            List<IQAWebElement> actualRows = this.driver.findElements(FindBy.xpath(rowXpath));
+
+            if (actualRows == null || actualRows.isEmpty()) {
+                log.info("No data rows found in table.");
+                return false;
+            }
+
+            // Verify the column actually exists in the table header
+            String headerXpath = tableXpath + "//thead//th[@aria-label=\"" + normalizedColumn + "\""
+                    + " or .//span[@title=\"" + normalizedColumn + "\"]"
+                    + " or normalize-space(.)=\"" + normalizedColumn + "\"]";
+            List<IQAWebElement> headerCells = this.driver.findElements(FindBy.xpath(headerXpath));
+            if (headerCells == null || headerCells.isEmpty()) {
+                log.info("Column [" + normalizedColumn + "] not found in table header.");
+                return false;
+            }
+
+            String cellTextScript =
+                    "function getElementByXpath(path){return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}" +
+                    "var el = getElementByXpath(arguments[0]);" +
+                    "if(!el) return '';" +
+                    // Prefer data-cell-value when present (Salesforce LWC datatable),
+                    // otherwise fall back to visible text.
+                    "var dv = el.getAttribute && el.getAttribute('data-cell-value');" +
+                    "if (dv !== null && dv !== undefined && dv !== '') return dv;" +
+                    "return (el.innerText || el.textContent || '').replace(/\\u00A0/g,' ').replace(/\\s+/g,' ').trim();";
+
+            boolean allMatched = true;
+
+            for (int i = 1; i <= actualRows.size(); i++) {
+                // Match column cell by data-label (works for both <td> and <th> rowheader cells)
+                String cellXpath = "(" + rowXpath + ")[" + i + "]//*[@data-label=\"" + normalizedColumn + "\"]";
+
+                String actualValue = String.valueOf(this.driver.executeScript(cellTextScript, cellXpath));
+                actualValue = actualValue.replace('\u00A0', ' ').replaceAll("\\s+", " ").trim();
+
+                if (normalizedExpected.isEmpty()) {
+                    if (!actualValue.isEmpty()) {
+                        log.info("Row " + i + " [" + normalizedColumn + "] mismatch. Expected empty, Actual: ["
+                                + actualValue + "]");
+                        allMatched = false;
+                    }
+                } else {
+                    if (!actualValue.equalsIgnoreCase(normalizedExpected)) {
+                        log.info("Row " + i + " [" + normalizedColumn + "] mismatch. Expected: ["
+                                + normalizedExpected + "] Actual: [" + actualValue + "]");
+                        allMatched = false;
+                    }
+                }
+            }
+
+            if (allMatched) {
+                log.info("All " + actualRows.size() + " rows have [" + normalizedColumn
+                        + "] = [" + normalizedExpected + "]");
+            }
+
+            return allMatched;
+
+        } catch (Exception e) {
+            log.info("Error while validating column [" + columnName + "] for all rows.");
+            return false;
+        }
+    }
+
+    @SyncAction(
+        uniqueId = "shadow-click",
+        groupName = "Web",
+        objectTemplate = @ObjectTemplate(
+                name = TechnologyType.WEB,
+                description = "Click an element inside (nested) shadow DOM using CSS path"
+        )
+)
+    public boolean clickElementInShadowDom() {
+        try {
+            String shadowCssPath = this.getAttributeValue("css");
+            if (shadowCssPath == null || shadowCssPath.trim().isEmpty()) {
+                log.info("Shadow CSS path is empty.");
+                return false;
+            }
+            String[] selectors = shadowCssPath.split(">>>");
+            String script =
+                    "var node = document;" +
+                    "for (var i = 0; i < arguments.length; i++) {" +
+                    "  if (i === 0) { node = node.querySelector(arguments[i]); }" +
+                    "  else { if (!node || !node.shadowRoot) return false;" +
+                    "         node = node.shadowRoot.querySelector(arguments[i]); }" +
+                    "  if (!node) return false;" +
+                    "}" +
+                    "node.scrollIntoView({block:'center'});" +
+                    "node.click();" +
+                    "return true;";
+            boolean clicked = Boolean.TRUE.equals(this.driver.executeScript(script, (Object[]) selectors));
+            if (!clicked) {
+                log.info("Failed to find/click shadow element: " + shadowCssPath);
+            } else {
+                log.info("Clicked shadow element: " + shadowCssPath);
+            }
+            return clicked;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @SyncAction(
+        uniqueId = "Wait for API job to sync data",
+        groupName = "Web",
+        objectTemplate = @ObjectTemplate(
+                name = TechnologyType.WEB,
+                description = "Wait for API job to sync data"
+        ),
+        objectRequired = false)
+    public boolean waitForAPIJobToSyncData() {
+    try {
+        long waitMillis = 4 * 60 * 1000L; // 3 minutes
+        log.info("Pausing execution for 4 minutes...");
+        Thread.sleep(waitMillis);
+        log.info("Resumed after 4 minutes wait.");
+        return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.info("Wait was interrupted.");
+            return false;
+        } catch (Exception e) {
+            log.info("Error during wait.");
+            return false;
+        }
+    }
+
+    @SyncAction(
+        uniqueId = "shadow-element-exists",
+        groupName = "Assertions",
+        objectTemplate = @ObjectTemplate(
+                name = TechnologyType.WEB,
+                description = "Check if an element exists inside (nested) Shadow DOM"
+        )
+)
+    public boolean isShadowElementPresent() {
+        try {
+            String shadowCssPath = this.getAttributeValue("css");
+            if (shadowCssPath == null || shadowCssPath.trim().isEmpty()) {
+                log.info("Shadow CSS path is empty.");
+                return false;
+            }
+
+            String[] selectors = shadowCssPath.split(">>>");
+
+            String script =
+                    "var node = document;" +
+                    "for (var i = 0; i < arguments.length; i++) {" +
+                    "  if (i === 0) { node = node.querySelector(arguments[i]); }" +
+                    "  else { if (!node || !node.shadowRoot) return false;" +
+                    "         node = node.shadowRoot.querySelector(arguments[i]); }" +
+                    "  if (!node) return false;" +
+                    "}" +
+                    "return true;";
+
+            boolean exists = Boolean.TRUE.equals(this.driver.executeScript(script, (Object[]) selectors));
+
+            log.info("Shadow element [" + shadowCssPath + "] exists = " + exists);
+            return exists;
+
+        } catch (Exception e) {
+            log.info("Error checking shadow DOM element existence.");
+            return false;
+        }
+    }
+
+    @SyncAction(
+        uniqueId = "shadow-type-text",
+        groupName = "Web",
+        objectTemplate = @ObjectTemplate(
+                name = TechnologyType.WEB,
+                description = "Type text into a Shadow DOM input/textarea"
+        )
+    )
+    public boolean typeTextInShadowDom(String valueToType) {
+        try {
+            String shadowCssPath = this.getAttributeValue("css");
+            if (shadowCssPath == null || shadowCssPath.trim().isEmpty()) {
+                log.info("Shadow CSS path is empty.");
+                return false;
+            }
+            if (valueToType == null) {
+                valueToType = "";
+            }
+            String[] selectors = shadowCssPath.split(">>>");
+            String script =
+                    "var value = arguments[arguments.length - 1];" +
+                    "var node = document;" +
+                    "for (var i = 0; i < arguments.length - 1; i++) {" +
+                    "  if (i === 0) { node = node.querySelector(arguments[i]); }" +
+                    "  else { if (!node || !node.shadowRoot) return false;" +
+                    "         node = node.shadowRoot.querySelector(arguments[i]); }" +
+                    "  if (!node) return false;" +
+                    "}" +
+                    "node.scrollIntoView({block:'center'});" +
+                    "node.focus();" +
+                    "var proto = node.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;" +
+                    "var setter = Object.getOwnPropertyDescriptor(proto, 'value').set;" +
+                    "setter.call(node, value);" +
+                    "node.dispatchEvent(new Event('input', { bubbles: true }));" +
+                    "node.dispatchEvent(new Event('change', { bubbles: true }));" +
+                    "return true;";
+            Object[] args = new Object[selectors.length + 1];
+            System.arraycopy(selectors, 0, args, 0, selectors.length);
+            args[selectors.length] = valueToType;
+            boolean typed = Boolean.TRUE.equals(this.driver.executeScript(script, args));
+            if (!typed) {
+                log.info("Failed to type in shadow input: " + shadowCssPath);
+            } else {
+                log.info("Typed [" + valueToType + "] into shadow input: " + shadowCssPath);
+            }
+            return typed;
+        } catch (Exception e) {
+            log.info("Error typing into shadow DOM input.");
+            return false;
+        }
+    }
+
+    @SyncAction(
+        uniqueId = "shadow-select-from-combobox",
+        groupName = "Web",
+        objectTemplate = @ObjectTemplate(
+                name = TechnologyType.WEB,
+                description = "Select a value from a Headless UI combobox/dropdown inside Shadow DOM"
+        )
+    )
+    public boolean selectFromShadowCombobox(String valueToSelect) {
+        try {
+            String shadowCssPath = this.getAttributeValue("css");
+            if (shadowCssPath == null || shadowCssPath.trim().isEmpty()) {
+                log.info("Shadow CSS path is empty.");
+                return false;
+            }
+            if (valueToSelect == null || valueToSelect.trim().isEmpty()) {
+                log.info("Value to select is empty.");
+                return false;
+            }
+            String[] selectors = shadowCssPath.split(">>>");
+            // Walk to input -> open -> clear -> type
+            String openAndTypeScript =
+                    "var value = arguments[arguments.length - 1];" +
+                    "var node = document;" +
+                    "for (var i = 0; i < arguments.length - 1; i++) {" +
+                    "  if (i === 0) { node = node.querySelector(arguments[i]); }" +
+                    "  else { if (!node || !node.shadowRoot) return 'INPUT_NOT_FOUND';" +
+                    "         node = node.shadowRoot.querySelector(arguments[i]); }" +
+                    "  if (!node) return 'INPUT_NOT_FOUND';" +
+                    "}" +
+                    "var input = node;" +
+                    "input.scrollIntoView({block:'center'});" +
+                    "input.focus();" +
+                    "input.click();" +
+                    "var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;" +
+                    "setter.call(input, '');" +
+                    "input.dispatchEvent(new Event('input',{bubbles:true}));" +
+                    "setter.call(input, value);" +
+                    "input.dispatchEvent(new Event('input',{bubbles:true}));" +
+                    "input.dispatchEvent(new Event('change',{bubbles:true}));" +
+                    "return 'OK';";
+            Object[] args = new Object[selectors.length + 1];
+            System.arraycopy(selectors, 0, args, 0, selectors.length);
+            args[selectors.length] = valueToSelect;
+            if (!"OK".equals(String.valueOf(this.driver.executeScript(openAndTypeScript, args)))) {
+                log.info("Combobox input not found: " + shadowCssPath);
+                return false;
+            }
+            // Click matching option using pointer events (Headless UI listens to these)
+            String clickOptionScript =
+                    "var value = arguments[arguments.length - 1];" +
+                    "var node = document;" +
+                    "for (var i = 0; i < arguments.length - 1; i++) {" +
+                    "  if (i === 0) { node = node.querySelector(arguments[i]); }" +
+                    "  else { if (!node || !node.shadowRoot) return 'NO_INPUT';" +
+                    "         node = node.shadowRoot.querySelector(arguments[i]); }" +
+                    "  if (!node) return 'NO_INPUT';" +
+                    "}" +
+                    "var input = node;" +
+                    "var root = input.getRootNode();" +
+                    "var options = root.querySelectorAll(\"[role='option']\");" +
+                    "if (!options || options.length === 0) return 'NO_OPTIONS';" +
+                    "var target = null;" +
+                    "for (var j = 0; j < options.length; j++) {" +
+                    "  var txt = (options[j].innerText || options[j].textContent || '').replace(/\\u00A0/g,' ').replace(/\\s+/g,' ').trim();" +
+                    "  if (txt.toLowerCase() === value.toLowerCase()) { target = options[j]; break; }" +
+                    "}" +
+                    "if (!target) {" +
+                    "  for (var k = 0; k < options.length; k++) {" +
+                    "    var txt2 = (options[k].innerText || options[k].textContent || '').replace(/\\u00A0/g,' ').replace(/\\s+/g,' ').trim();" +
+                    "    if (txt2.toLowerCase().indexOf(value.toLowerCase()) !== -1) { target = options[k]; break; }" +
+                    "  }" +
+                    "}" +
+                    "if (!target) return 'NOT_FOUND';" +
+                    "target.scrollIntoView({block:'center'});" +
+                    // Headless UI uses pointer events — dispatch the full sequence.
+                    "var rect = target.getBoundingClientRect();" +
+                    "var x = rect.left + rect.width/2;" +
+                    "var y = rect.top + rect.height/2;" +
+                    "var opts = {bubbles:true, cancelable:true, composed:true, clientX:x, clientY:y, button:0, buttons:1};" +
+                    "target.dispatchEvent(new PointerEvent('pointerdown', opts));" +
+                    "target.dispatchEvent(new MouseEvent('mousedown', opts));" +
+                    "target.dispatchEvent(new PointerEvent('pointerup', opts));" +
+                    "target.dispatchEvent(new MouseEvent('mouseup', opts));" +
+                    "target.dispatchEvent(new MouseEvent('click', opts));" +
+                    "return 'OK';";
+            boolean clicked = false;
+            String lastResult = "";
+            for (int attempt = 0; attempt < 10; attempt++) {
+                Object res = this.driver.executeScript(clickOptionScript, args);
+                lastResult = String.valueOf(res);
+                if ("OK".equals(lastResult)) {
+                    clicked = true;
+                    break;
+                }
+                Thread.sleep(500);
+            }
+            // Fallback — if pointer events didn't take, press Enter on the input
+            if (!clicked) {
+                log.info("Pointer click on option failed (" + lastResult + "). Trying Enter key fallback.");
+                String enterFallbackScript =
+                        "var node = document;" +
+                        "for (var i = 0; i < arguments.length; i++) {" +
+                        "  if (i === 0) { node = node.querySelector(arguments[i]); }" +
+                        "  else { if (!node || !node.shadowRoot) return false;" +
+                        "         node = node.shadowRoot.querySelector(arguments[i]); }" +
+                        "  if (!node) return false;" +
+                        "}" +
+                        "var input = node;" +
+                        "input.focus();" +
+                        "var down = new KeyboardEvent('keydown', {key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true, cancelable:true, composed:true});" +
+                        "var up = new KeyboardEvent('keyup', {key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true, cancelable:true, composed:true});" +
+                        "input.dispatchEvent(down);" +
+                        "input.dispatchEvent(up);" +
+                        "return true;";
+                clicked = Boolean.TRUE.equals(this.driver.executeScript(enterFallbackScript, (Object[]) selectors));
+            }
+            if (!clicked) {
+                log.info("Could not select [" + valueToSelect + "] in combobox: " + shadowCssPath);
+                return false;
+            }
+            log.info("Selected [" + valueToSelect + "] in combobox: " + shadowCssPath);
+            return true;
+        } catch (Exception e) {
+            log.info("Error selecting from shadow combobox.");
+            return false;
+        }
+    }
+
+    @SyncAction(
+        uniqueId = "shadow-click-collapsible-by-heading",
+        groupName = "Web",
+        objectTemplate = @ObjectTemplate(
+                name = TechnologyType.WEB,
+                description = "Click a sidebar collapsible by its heading text (Shadow DOM aware)"
+        ),
+        objectRequired = false
+    )
+    public boolean clickSidebarCollapsibleByHeading(String headingText) {
+        try {
+            if (headingText == null || headingText.trim().isEmpty()) {
+                log.info("Heading text is empty.");
+                return false;
+            }
+
+            String script =
+                    "var heading = arguments[0].toLowerCase();" +
+                    "var sidebar = document.querySelector('pag-sidebar document-info');" +
+                    "if (!sidebar || !sidebar.shadowRoot) return 'NO_SIDEBAR';" +
+                    "var collapsibles = sidebar.shadowRoot.querySelectorAll('pag-collapsible');" +
+                    "for (var i = 0; i < collapsibles.length; i++) {" +
+                    "  var c = collapsibles[i];" +
+                    "  if (!c.shadowRoot) continue;" +
+                    "  var btn = c.shadowRoot.querySelector('[role=\"button\"]');" +
+                    "  if (!btn) continue;" +
+                    "  var txt = (btn.textContent || '').replace(/\\u00A0/g,' ').replace(/\\s+/g,' ').trim().toLowerCase();" +
+                    "  if (txt.indexOf(heading) !== -1) {" +
+                    "    btn.scrollIntoView({block:'center'});" +
+                    "    var rect = btn.getBoundingClientRect();" +
+                    "    var o = {bubbles:true, cancelable:true, composed:true, clientX:rect.left+rect.width/2, clientY:rect.top+rect.height/2, button:0, buttons:1};" +
+                    "    btn.dispatchEvent(new PointerEvent('pointerdown', o));" +
+                    "    btn.dispatchEvent(new MouseEvent('mousedown', o));" +
+                    "    btn.dispatchEvent(new PointerEvent('pointerup', o));" +
+                    "    btn.dispatchEvent(new MouseEvent('mouseup', o));" +
+                    "    btn.dispatchEvent(new MouseEvent('click', o));" +
+                    "    return 'OK';" +
+                    "  }" +
+                    "}" +
+                    "return 'NOT_FOUND';";
+
+            String result = String.valueOf(this.driver.executeScript(script, headingText));
+
+            if ("OK".equals(result)) {
+                log.info("Clicked sidebar collapsible: " + headingText);
+                return true;
+            }
+
+            log.info("Failed to click collapsible [" + headingText + "]. Reason: " + result);
+            return false;
+
+        } catch (Exception e) {
+            log.info("Error clicking sidebar collapsible by heading.");
+            return false;
+        }
+    }   
+    @SyncAction(
+        uniqueId = "validate-xml-node-value",
+        groupName = "Assertions",
+        objectTemplate = @ObjectTemplate(
+                name = TechnologyType.WEB,
+                description = "Validate that an XML node has the expected value (namespace-agnostic, flexible match)"
+        ),
+        objectRequired = false
+    )
+    public boolean validateXmlNodeValue(String filePath, String nodeName, String expectedValue) {
+        try {
+            if (filePath == null || filePath.trim().isEmpty()) {
+                log.info("File path is empty.");
+                return false;
+            }
+            if (nodeName == null || nodeName.trim().isEmpty()) {
+                log.info("Node name is empty.");
+                return false;
+            }
+            if (expectedValue == null) {
+                log.info("Expected value is null.");
+                return false;
+            }
+
+            java.io.File xmlFile = new java.io.File(filePath);
+            if (!xmlFile.exists() || !xmlFile.isFile()) {
+                log.info("XML file not found: " + filePath);
+                return false;
+            }
+
+            // Parse XML (namespace-unaware so we can match by local name regardless of cbc:/cac: prefix)
+            javax.xml.parsers.DocumentBuilderFactory factory = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(false);
+            javax.xml.parsers.DocumentBuilder builder = factory.newDocumentBuilder();
+            org.w3c.dom.Document doc = builder.parse(xmlFile);
+
+            // Find every element whose local name matches (ignore namespace prefix)
+            org.w3c.dom.NodeList all = doc.getElementsByTagName("*");
+            java.util.List<org.w3c.dom.Element> matches = new java.util.ArrayList<>();
+            for (int i = 0; i < all.getLength(); i++) {
+                org.w3c.dom.Element el = (org.w3c.dom.Element) all.item(i);
+                String tag = el.getTagName();
+                String localName = tag.contains(":") ? tag.substring(tag.indexOf(':') + 1) : tag;
+                if (localName.equalsIgnoreCase(nodeName.trim())) {
+                    matches.add(el);
+                }
+            }
+
+            if (matches.isEmpty()) {
+                log.info("No node found with name [" + nodeName + "] in XML.");
+                return false;
+            }
+
+            // Try every match — return true if any of them validates the expected value
+            for (org.w3c.dom.Element el : matches) {
+                String fullText = el.getTextContent() == null ? "" : el.getTextContent().trim();
+                String directText = getDirectTextOnly(el).trim();
+
+                String currency = el.getAttribute("currencyID");
+                String actualWithCurrency = (currency != null && !currency.isEmpty())
+                        ? (currency + " " + directText).trim()
+                        : directText;
+
+                if (valuesMatch(directText, expectedValue)
+                        || valuesMatch(fullText, expectedValue)
+                        || valuesMatch(actualWithCurrency, expectedValue)) {
+                    String shown = directText.isEmpty() ? fullText : actualWithCurrency;
+                    log.info("Validated [" + nodeName + "] = [" + expectedValue + "] (actual: " + shown + ")");
+                    return true;
+                }
+            }
+
+            org.w3c.dom.Element first = matches.get(0);
+            String firstText = (first.getTextContent() == null ? "" : first.getTextContent()).trim()
+                    .replaceAll("\\s+", " ");
+            log.info("Validation failed for [" + nodeName + "]. Expected: [" + expectedValue
+                    + "], Actual (first match): [" + firstText + "]");
+            return false;
+
+        } catch (Exception e) {
+            log.info("Error validating XML node value.");
+            return false;
+        }
+    }
+
+    private String getDirectTextOnly(org.w3c.dom.Element el) {
+        StringBuilder sb = new StringBuilder();
+        org.w3c.dom.NodeList children = el.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            org.w3c.dom.Node n = children.item(i);
+            if (n.getNodeType() == org.w3c.dom.Node.TEXT_NODE) {
+                sb.append(n.getNodeValue());
+            }
+        }
+        return sb.toString();
+    }
+
+    private boolean valuesMatch(String actual, String expected) {
+        if (actual == null) actual = "";
+        if (expected == null) expected = "";
+
+        String a = actual.trim();
+        String e = expected.trim();
+
+        if (a.equalsIgnoreCase(e)) return true;
+
+        String aNorm = a.replaceAll("\\s+", " ").toLowerCase();
+        String eNorm = e.replaceAll("\\s+", " ").toLowerCase();
+        if (aNorm.equals(eNorm)) return true;
+        if (aNorm.contains(eNorm) || eNorm.contains(aNorm)) return true;
+
+        Double aNum = extractFirstNumber(a);
+        Double eNum = extractFirstNumber(e);
+        if (aNum != null && eNum != null && Math.abs(aNum - eNum) < 0.005) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private Double extractFirstNumber(String s) {
+        if (s == null) return null;
+        String cleaned = s.replace(',', '.');
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("[-+]?\\d*\\.?\\d+").matcher(cleaned);
+        if (m.find()) {
+            try {
+                return Double.parseDouble(m.group());
+            } catch (NumberFormatException ignored) { }
+        }
+        return null;
+    }
 }
 
     

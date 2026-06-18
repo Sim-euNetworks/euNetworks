@@ -119,9 +119,9 @@
         </plugins>
       </build>
     </profile>
-    <!-- Profile for GitRelease -->
+    <!-- Profile for Publish -->
     <profile>
-      <id>git-release</id>
+      <id>publish</id>
       <build>
         <plugins>
           <plugin>
@@ -136,7 +136,7 @@
               </execution>
             </executions>
             <configuration>
-              <mainClass>com.simplifyqa.codeeditor.githandler.GitRelease</mainClass>
+              <mainClass>com.simplifyqa.codeeditor.githandler.JarPublisher</mainClass>
               <includeProjectDependencies>true</includeProjectDependencies>
               <includePluginDependencies>false</includePluginDependencies>
               <classpathScope>compile</classpathScope>
