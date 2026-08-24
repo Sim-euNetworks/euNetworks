@@ -1,5 +1,6 @@
 package com.simplifyqa.codeeditor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.simplifyqa.abstraction.driver.IQAWebDriver;
 import com.simplifyqa.abstraction.element.IQAWebElement;
 import com.simplifyqa.pluginbase.argument.IArgument;
@@ -11,6 +12,9 @@ import com.simplifyqa.pluginbase.common.models.Attribute;
 import com.simplifyqa.pluginbase.common.models.SqaObject;
 import com.simplifyqa.pluginbase.plugin.annotations.ObjectTemplate;
 import com.simplifyqa.web.base.search.FindBy;
+
+import net.bytebuddy.asm.Advice.Enter;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.DecimalFormat;
@@ -25,6 +29,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import org.openqa.selenium.support.Color;
 import com.simplifyqa.pluginbase.plugin.execution.IExecutionLogReporter;
@@ -32,33 +37,51 @@ import com.simplifyqa.pluginbase.common.enums.BrowserType;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.text.PDFTextStripper;
+import java.net.URLDecoder;
+import java.io.InputStream;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Base64;
 import java.io.File;
+import java.net.URLConnection;
+import java.net.HttpURLConnection;
+import org.openqa.selenium.JavascriptExecutor;
+import net.schmizz.sshj.SSHClient;
+import net.schmizz.sshj.sftp.SFTPClient;
+
 public class SampleClass {
     @AutoInjectWebDriver
     private IQAWebDriver driver;
     @AutoInjectCurrentObject
     private SqaObject currenObject;
     private static final Logger log = Logger.getLogger(SampleClass.class.getName());
+    private static final ObjectMapper JSON = new ObjectMapper();
+    
 
     @SyncAction(uniqueId="MyProject-Sample-001", groupName="Click", objectTemplate=@ObjectTemplate(name=TechnologyType.WEB, description="This action belongs to WEB"))
     public boolean customSampleClick(String xpath) {
         this.driver.findElement(FindBy.xpath((String)xpath)).click();
-        log.info("custom click is executed ");
+        driver.getExecutionLogReporter().info("custom click is executed ");
+        //driver.getExecutionLogReporter().info("");
+        //driver.getExecutionLogReporter().error("xpath");
         return true;
     }
 
     @SyncAction(uniqueId="MyProject-Sample-002", groupName="Type Text", description="Save to db using db url", objectTemplate=@ObjectTemplate(name=TechnologyType.ANDROID, description="This action belongs to ANDROID"))
     public boolean customSampleTypeText(String xpath, String text) {
         this.driver.findElement(FindBy.xpath((String)xpath)).enterText(text);
-        log.info("enter text is executed");
+        driver.getExecutionLogReporter().info("enter text is executed");
         return true;
     }
 
     @SyncAction(uniqueId="MyProject-Sample-003", groupName="Type Text", objectTemplate=@ObjectTemplate(name=TechnologyType.IOS, description="This action belongs to IOS"))
     public boolean customSampleEnterTextWithJS(String xpathOfElement, String valueToEnter) {
         this.driver.findElement(FindBy.xpath((String)xpathOfElement)).enterText(valueToEnter);
-        log.info("enter text is executed");
+        driver.getExecutionLogReporter().info("enter text is executed");
         return true;
     }
 
@@ -66,14 +89,14 @@ public class SampleClass {
     public boolean customAddition(String ... ints) {
         this.driver.getGenericMethods().additionOfValues(ints);
         // this.driver.getGenericMethods().additionOfValues(ints);
-        log.info("addition of values performed");
+        driver.getExecutionLogReporter().info("addition of values performed");
         return true;
     }
 
     @SyncAction(uniqueId="MyProject-Sample-005", groupName="Generic", objectTemplate=@ObjectTemplate(name=TechnologyType.GENERIC, description="This action belongs to GENERIC"))
     public boolean getUnquieNumber(String suffix, IArgument value) {
         String uniqueNumber = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyMMddHHmmssSS"));
-        log.info("Generated unique number: " + uniqueNumber);
+        driver.getExecutionLogReporter().info("Generated unique number: " + uniqueNumber);
         String generatedNumber = suffix.concat(" " + uniqueNumber);
         value.updateValue(generatedNumber);
         return true;
@@ -85,7 +108,7 @@ public class SampleClass {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format);
             LocalDate now = LocalDate.now();
             String currentDate = now.format(formatter);
-            log.info("Generated Date: " + currentDate);
+            driver.getExecutionLogReporter().info("Generated Date: " + currentDate);
             value.updateValue(currentDate);
             return true;
         } catch (DateTimeParseException e) {
@@ -99,7 +122,7 @@ public class SampleClass {
             String firstValue = value1.trim().toLowerCase();
             String secondValue = value2.trim().toLowerCase();
           if (firstValue.equalsIgnoreCase(secondValue)) {
-            log.info("value1: " + firstValue + "value2 :" + secondValue);
+            driver.getExecutionLogReporter().info("value1: " + firstValue + "value2 :" + secondValue);
             return true;
           }
           else
@@ -109,7 +132,7 @@ public class SampleClass {
             return firstValue1.equals(secondValue2);
           }
         } catch (Exception e) {
-          log.info("value1: " + value1 + "value2 :" + value2);
+            driver.getExecutionLogReporter().error("value1: " + value1 + "value2 :" + value2);
           return false;
         }
       }
@@ -146,7 +169,7 @@ public class SampleClass {
             ZonedDateTime now = ZonedDateTime.now(ZoneId.of("GMT"));
             ZonedDateTime newDate = now.plusDays(additionalDate);
             String currentDate = newDate.format(formatter);
-            log.info("Generated Date in GMT: " + currentDate);
+            driver.getExecutionLogReporter().info("Generated Date in GMT: " + currentDate);
             value.updateValue(currentDate);
             return true;
         } catch (DateTimeParseException e) {
@@ -274,7 +297,7 @@ public class SampleClass {
                     bstatus = true;
                 }
                 if (bstatus) continue;
-                log.info(v[j] + " : This List Item Is Missing in UI.");
+                driver.getExecutionLogReporter().info(v[j] + " : This List Item Is Missing in UI.");
                 return bstatus;
             }
             return bstatus;
@@ -311,7 +334,7 @@ public class SampleClass {
                 String updatedXpath = "(" + xpath2 + ")[" + i + "]";
                 int count = this.driver.findElements(FindBy.xpath((String)updatedXpath)).size();
                 if (count != 1) {
-                    log.info(v[i] + " : This List Item Is Missing in UI.");
+                    driver.getExecutionLogReporter().info(v[i] + " : This List Item Is Missing in UI.");
                     return bstatus;
                 }
                 bstatus = true;
@@ -327,7 +350,7 @@ public class SampleClass {
         try {
             String cXpath = this.getAttributeValue("xpath");
             String en = this.driver.executeScript("function getElementByXpath(path) {return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}var a = getElementByXpath(\"" + cXpath + "\");return a.innerText;", new Object[0]).toString();
-            log.info("Stored text : " + en);
+            driver.getExecutionLogReporter().info("Stored text : " + en);
             value.updateValue(en);
             return true;
         } catch (Exception e) {
@@ -362,7 +385,7 @@ public class SampleClass {
         try {
             String elementXpath = this.getAttributeValue("xpath");
             String en = this.driver.executeScript("function getElementByXpath(path) {return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}var a = getElementByXpath(\"" + elementXpath + "\");return window.getComputedStyle(a)." + cssAttribute + ";", new Object[0]).toString();
-            log.info("Stored Attribute Value : " + en);
+            driver.getExecutionLogReporter().info("Stored Attribute Value : " + en);
             value.updateValue(en);
             return true;
         } catch (Exception e) {
@@ -413,13 +436,13 @@ public class SampleClass {
                 for (int b = 0; b < j; b = (int)((byte)(b + 1))) {
                     String option = arrayOfString[b];
                     if (!dPAllOptions.contains(option)) {
-                        log.info("This : " + option + " not available in dropdown");
+                        driver.getExecutionLogReporter().info("This : " + option + " not available in dropdown");
                         return false;
                     }
                     bStatus = true;
                 }
             } else {
-                log.info("Plaese check Object Attribute/Xpath");
+                driver.getExecutionLogReporter().info("Plaese check Object Attribute/Xpath");
                 return false;
             }
             return bStatus;
@@ -447,13 +470,13 @@ public class SampleClass {
                 for (int b = 0; b < j; b = (int)((byte)(b + 1))) {
                     String option = arrayOfString[b];
                     if (dPAllOptions.contains(option)) {
-                        log.info("This : " + option + " is available in dropdown");
+                        driver.getExecutionLogReporter().info("This : " + option + " is available in dropdown");
                         return false;
                     }
                     bStatus = true;
                 }
             } else {
-                log.info("Plaese check Object Attribute/Xpath");
+                driver.getExecutionLogReporter().info("Plaese check Object Attribute/Xpath");
                 return false;
             }
             return bStatus;
@@ -472,7 +495,7 @@ public class SampleClass {
                 String updateXpath = elementXpath.replace("#replace", Options[i]);
                 boolean a = this.driver.findElement(FindBy.xpath((String)updateXpath)).click();
                 if (!a) {
-                    log.info("Unable to Selcet Service for this product " + Options[i] + ".");
+                    driver.getExecutionLogReporter().info("Unable to Selcet Service for this product " + Options[i] + ".");
                     return false;
                 }
                 bStatus = true;
@@ -488,7 +511,7 @@ public class SampleClass {
         try {
             String elementXpath = this.getAttributeValue("xpath");
             String en = this.driver.executeScript("function getElementByXpath(path) {return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}var a = getElementByXpath(\"" + elementXpath + "\");return a." + elementPro + ";", new Object[0]).toString();
-            log.info("Stored Attribute Value : " + en);
+            driver.getExecutionLogReporter().info("Stored Attribute Value : " + en);
             value.updateValue(en);
             return true;
         } catch (Exception e) {
@@ -507,7 +530,7 @@ public class SampleClass {
         }
         boolean a = this.driver.findElement(FindBy.xpath((String)updatedXpath)).click();
         if (!a) {
-            log.info("Unable to replace the value, The current Attribute property is " + updatedXpath);
+            driver.getExecutionLogReporter().info("Unable to replace the value, The current Attribute property is " + updatedXpath);
             return false;
         }
         bStatus = true;
@@ -536,7 +559,7 @@ public class SampleClass {
                 updatedXpath = "(" + elementXpath + ")[1]";
                 boolean a = this.driver.findElement(FindBy.xpath((String)updatedXpath)).click();
                 if (!a) {
-                    log.info("Unable to click " + (String)updatedXpath);
+                    driver.getExecutionLogReporter().info("Unable to click " + (String)updatedXpath);
                     return false;
                 }
                 bStatus = true;
@@ -681,7 +704,7 @@ public class SampleClass {
                             new Object[0]
                     ).toString();
 
-                    log.info("Stored Attribute Value : " + en);
+                    driver.getExecutionLogReporter().info("Stored Attribute Value : " + en);
 
                     String cleaned = en
                             .replaceAll("(USD|EUR)", "")
@@ -725,7 +748,7 @@ public class SampleClass {
 
        String pageText = "";
 
-       try (PDDocument document = PDDocument.load(new File(pdfPath))) {
+       try (PDDocument document = Loader.loadPDF(new File(pdfPath))) {
 
            if (pageNumber < 1 || pageNumber > document.getNumberOfPages()) {
                throw new IllegalArgumentException("Invalid page number!");
@@ -746,7 +769,7 @@ public class SampleClass {
 
        if(pageText.contains(valueToBeCompared)){
         comparedResult.updateValue(valueToBeCompared+ " - is present in Base String ");
-        log.info("Verified "+valueToBeCompared+ " is presnt in BaseString "+pageText);
+        driver.getExecutionLogReporter().info("Verified "+valueToBeCompared+ " is presnt in BaseString "+pageText);
         pdfDataRuntime.updateValue(pageText);
         return true;
         }else{
@@ -922,7 +945,7 @@ public Boolean verifyFiledStoreandPopulateValue() {
           LocalDate firstDayOfMonth = updatedDate.withDayOfMonth(1);
           DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format);
           String expectedDate =  firstDayOfMonth.format(formatter);
-          log.info("Generated Date in GMT: " + expectedDate);
+          driver.getExecutionLogReporter().info("Generated Date in GMT: " + expectedDate);
           value.updateValue(expectedDate);
           return true;
         }
@@ -951,18 +974,18 @@ public Boolean verifyFiledStoreandPopulateValue() {
             secondValue = date2.format(formatter);
 
         } catch (DateTimeParseException e) {
-            log.info("Date parsing failed. Proceeding with string comparison.");
+            driver.getExecutionLogReporter().error("Date parsing failed. Proceeding with string comparison.");
         }
 
         if (firstValue.equalsIgnoreCase(secondValue)) {
-            log.info("value1: " + firstValue + " value2 :" + secondValue);
+            driver.getExecutionLogReporter().info("value1: " + firstValue + " value2 :" + secondValue);
             return true;
         } else {
             return firstValue.equalsIgnoreCase(secondValue);
         }
 
         } catch (Exception e) {
-            log.info("value1: " + value1 + " value2 :" + value2);
+            driver.getExecutionLogReporter().error("value1: " + value1 + " value2 :" + value2);
             return false;
         }
     }
@@ -1012,7 +1035,7 @@ public Boolean verifyFiledStoreandPopulateValue() {
             double TaxValue = parseCurrency(taxValue);
             double CalculatedGrossValue = NetValue + TaxValue;
             if(Math.abs(CalculatedGrossValue - value) < 0.01){
-                log.info("Net Value: "+netValue+ " Tax Value: "+taxValue+" Gross Total Value: "+CalculatedGrossValue);
+                driver.getExecutionLogReporter().info("Net Value: "+netValue+ " Tax Value: "+taxValue+" Gross Total Value: "+CalculatedGrossValue);
                 return true;
             }
             return false;
@@ -1077,12 +1100,12 @@ public Boolean verifyFiledStoreandPopulateValue() {
         try {
             String tableXpath = this.getAttributeValue("xpath");
             if (tableXpath == null || tableXpath.trim().isEmpty()) {
-                log.info("Table xpath is empty.");
+                driver.getExecutionLogReporter().info("Table xpath is empty.");
                 this.driver.getExecutionLogReporter().info("Table xpath is empty.");
                 return false;
             }
             if (expectedRowsInput == null || expectedRowsInput.trim().isEmpty()) {
-                log.info("Expected input is empty.");
+                driver.getExecutionLogReporter().info("Expected input is empty.");
                 this.driver.getExecutionLogReporter().info("Expected input is empty.");
                 return false;
             }
@@ -1098,7 +1121,7 @@ public Boolean verifyFiledStoreandPopulateValue() {
                 // -1 keeps empty tokens (important for blank Description/Location A/Location Z)
                 String[] cells = row.split("\\|", -1);
                 if (cells.length != 4) {
-                    log.info("Invalid expected row format at index " + (i + 1)
+                    driver.getExecutionLogReporter().info("Invalid expected row format at index " + (i + 1)
                             + ". Expected: Reference|Description|Location A|Location Z, Actual: " + row);
                     this.driver.getExecutionLogReporter().info("Invalid expected row format at index " + (i + 1)
                             + ". Expected: Reference|Description|Location A|Location Z, Actual: " + row);
@@ -1109,14 +1132,14 @@ public Boolean verifyFiledStoreandPopulateValue() {
                 String locationA = cells[2] == null ? "" : cells[2].replace('\u00A0', ' ').replaceAll("\\s+", " ").trim();
                 String locationZ = cells[3] == null ? "" : cells[3].replace('\u00A0', ' ').replaceAll("\\s+", " ").trim();
                 if (reference.isEmpty()) {
-                    log.info("Reference cannot be empty in expected row " + (i + 1));
+                    driver.getExecutionLogReporter().info("Reference cannot be empty in expected row " + (i + 1));
                     this.driver.getExecutionLogReporter().info("Reference cannot be empty in expected row " + (i + 1));
                     return false;
                 }
                 parsedExpected.add(new String[]{reference, description, locationA, locationZ});
             }
             if (parsedExpected.isEmpty()) {
-                log.info("No valid expected rows found.");
+                driver.getExecutionLogReporter().info("No valid expected rows found.");
                 this.driver.getExecutionLogReporter().info("No valid expected rows found.");
                 return false;
             }
@@ -1124,13 +1147,13 @@ public Boolean verifyFiledStoreandPopulateValue() {
             String rowXpath = tableXpath + "//tbody//c-design-tool-table-row";
             List<IQAWebElement> actualRows = this.driver.findElements(FindBy.xpath(rowXpath));
             if (actualRows == null || actualRows.isEmpty()) {
-                log.info("No actual data rows found in table.");
+                driver.getExecutionLogReporter().info("No actual data rows found in table.");
                 this.driver.getExecutionLogReporter().info("No actual data rows found in table.");
                 return false;
             }
             // Strict order/count check
             if (actualRows.size() != parsedExpected.size()) {
-                log.info("Row count mismatch. Expected: " + parsedExpected.size() + ", Actual: " + actualRows.size());
+                driver.getExecutionLogReporter().info("Row count mismatch. Expected: " + parsedExpected.size() + ", Actual: " + actualRows.size());
                 this.driver.getExecutionLogReporter().info("Row count mismatch. Expected: " + parsedExpected.size() + ", Actual: " + actualRows.size());
                 return false;
             }
@@ -1159,7 +1182,7 @@ public Boolean verifyFiledStoreandPopulateValue() {
                 String expectedLocationZ = parsedExpected.get(i - 1)[3];
                 // Reference: contains (case-sensitive), as requested
                 if (!actualReference.contains(expectedReference)) {
-                    log.info("Row " + i + " Reference mismatch. Expected contains: [" + expectedReference
+                    driver.getExecutionLogReporter().info("Row " + i + " Reference mismatch. Expected contains: [" + expectedReference
                             + "] Actual: [" + actualReference + "]");
                     this.driver.getExecutionLogReporter().info("Row " + i + " Reference mismatch. Expected contains: [" + expectedReference
                             + "] Actual: [" + actualReference + "]");
@@ -1170,13 +1193,13 @@ public Boolean verifyFiledStoreandPopulateValue() {
                 // - expected non-empty => actual should contain expected
                 if (expectedDescription.isEmpty()) {
                     if (!actualDescription.isEmpty()) {
-                        log.info("Row " + i + " Description mismatch. Expected empty, Actual: [" + actualDescription + "]");
+                        driver.getExecutionLogReporter().info("Row " + i + " Description mismatch. Expected empty, Actual: [" + actualDescription + "]");
                         this.driver.getExecutionLogReporter().info("Row " + i + " Description mismatch. Expected empty, Actual: [" + actualDescription + "]");
                         return false;
                     }
                 } else {
                     if (!actualDescription.contains(expectedDescription)) {
-                        log.info("Row " + i + " Description mismatch. Expected contains: [" + expectedDescription
+                        driver.getExecutionLogReporter().info("Row " + i + " Description mismatch. Expected contains: [" + expectedDescription
                                 + "] Actual: [" + actualDescription + "]");
                         this.driver.getExecutionLogReporter().info("Row " + i + " Description mismatch. Expected contains: [" + expectedDescription
                                 + "] Actual: [" + actualDescription + "]");
@@ -1186,13 +1209,13 @@ public Boolean verifyFiledStoreandPopulateValue() {
                 // Location A
                 if (expectedLocationA.isEmpty()) {
                     if (!actualLocationA.isEmpty()) {
-                        log.info("Row " + i + " Location A mismatch. Expected empty, Actual: [" + actualLocationA + "]");
+                        driver.getExecutionLogReporter().info("Row " + i + " Location A mismatch. Expected empty, Actual: [" + actualLocationA + "]");
                         this.driver.getExecutionLogReporter().info("Row " + i + " Location A mismatch. Expected empty, Actual: [" + actualLocationA + "]");
                         return false;
                     }
                 } else {
                     if (!actualLocationA.contains(expectedLocationA)) {
-                        log.info("Row " + i + " Location A mismatch. Expected contains: [" + expectedLocationA
+                        driver.getExecutionLogReporter().info("Row " + i + " Location A mismatch. Expected contains: [" + expectedLocationA
                                 + "] Actual: [" + actualLocationA + "]");
                         this.driver.getExecutionLogReporter().info("Row " + i + " Location A mismatch. Expected contains: [" + expectedLocationA
                                 + "] Actual: [" + actualLocationA + "]");
@@ -1202,13 +1225,13 @@ public Boolean verifyFiledStoreandPopulateValue() {
                 // Location Z
                 if (expectedLocationZ.isEmpty()) {
                     if (!actualLocationZ.isEmpty()) {
-                        log.info("Row " + i + " Location Z mismatch. Expected empty, Actual: [" + actualLocationZ + "]");
+                        driver.getExecutionLogReporter().info("Row " + i + " Location Z mismatch. Expected empty, Actual: [" + actualLocationZ + "]");
                         this.driver.getExecutionLogReporter().info("Row " + i + " Location Z mismatch. Expected empty, Actual: [" + actualLocationZ + "]");
                         return false;
                     }
                 } else {
                     if (!actualLocationZ.contains(expectedLocationZ)) {
-                        log.info("Row " + i + " Location Z mismatch. Expected contains: [" + expectedLocationZ
+                        driver.getExecutionLogReporter().info("Row " + i + " Location Z mismatch. Expected contains: [" + expectedLocationZ
                                 + "] Actual: [" + actualLocationZ + "]");
                         this.driver.getExecutionLogReporter().info("Row " + i + " Location Z mismatch. Expected contains: [" + expectedLocationZ
                                 + "] Actual: [" + actualLocationZ + "]");
@@ -1216,11 +1239,11 @@ public Boolean verifyFiledStoreandPopulateValue() {
                     }
                 }
             }
-            log.info("Strict table validation passed for Reference, Description, Location A and Location Z.");
+            driver.getExecutionLogReporter().info("Strict table validation passed for Reference, Description, Location A and Location Z.");
             this.driver.getExecutionLogReporter().info("Strict table validation passed for Reference, Description, Location A and Location Z.");
             return true;
         } catch (Exception e) {
-            log.info("Error while validating table rows in strict order.");
+            driver.getExecutionLogReporter().error("Error while validating table rows in strict order.");
             this.driver.getExecutionLogReporter().error("Error while validating table rows in strict order.");
             return false;
         }
@@ -1305,17 +1328,17 @@ public Boolean verifyFiledStoreandPopulateValue() {
             String tableXpath = this.getAttributeValue("xpath");
 
             if (tableXpath == null || tableXpath.trim().isEmpty()) {
-                log.info("Table xpath is empty.");
+                driver.getExecutionLogReporter().info("Table xpath is empty.");
                 return false;
             }
 
             if (columnName == null || columnName.trim().isEmpty()) {
-                log.info("Column name is empty.");
+                driver.getExecutionLogReporter().info("Column name is empty.");
                 return false;
             }
 
             if (expectedValue == null) {
-                log.info("Expected value is null.");
+                driver.getExecutionLogReporter().info("Expected value is null.");
                 return false;
             }
 
@@ -1327,7 +1350,7 @@ public Boolean verifyFiledStoreandPopulateValue() {
             List<IQAWebElement> actualRows = this.driver.findElements(FindBy.xpath(rowXpath));
 
             if (actualRows == null || actualRows.isEmpty()) {
-                log.info("No data rows found in table.");
+                driver.getExecutionLogReporter().info("No data rows found in table.");
                 return false;
             }
 
@@ -1337,7 +1360,7 @@ public Boolean verifyFiledStoreandPopulateValue() {
                     + " or normalize-space(.)=\"" + normalizedColumn + "\"]";
             List<IQAWebElement> headerCells = this.driver.findElements(FindBy.xpath(headerXpath));
             if (headerCells == null || headerCells.isEmpty()) {
-                log.info("Column [" + normalizedColumn + "] not found in table header.");
+                driver.getExecutionLogReporter().info("Column [" + normalizedColumn + "] not found in table header.");
                 return false;
             }
 
@@ -1362,13 +1385,13 @@ public Boolean verifyFiledStoreandPopulateValue() {
 
                 if (normalizedExpected.isEmpty()) {
                     if (!actualValue.isEmpty()) {
-                        log.info("Row " + i + " [" + normalizedColumn + "] mismatch. Expected empty, Actual: ["
+                        driver.getExecutionLogReporter().info("Row " + i + " [" + normalizedColumn + "] mismatch. Expected empty, Actual: ["
                                 + actualValue + "]");
                         allMatched = false;
                     }
                 } else {
                     if (!actualValue.equalsIgnoreCase(normalizedExpected)) {
-                        log.info("Row " + i + " [" + normalizedColumn + "] mismatch. Expected: ["
+                        driver.getExecutionLogReporter().info("Row " + i + " [" + normalizedColumn + "] mismatch. Expected: ["
                                 + normalizedExpected + "] Actual: [" + actualValue + "]");
                         allMatched = false;
                     }
@@ -1376,14 +1399,14 @@ public Boolean verifyFiledStoreandPopulateValue() {
             }
 
             if (allMatched) {
-                log.info("All " + actualRows.size() + " rows have [" + normalizedColumn
+                driver.getExecutionLogReporter().info("All " + actualRows.size() + " rows have [" + normalizedColumn
                         + "] = [" + normalizedExpected + "]");
             }
 
             return allMatched;
 
         } catch (Exception e) {
-            log.info("Error while validating column [" + columnName + "] for all rows.");
+            driver.getExecutionLogReporter().error("Error while validating column [" + columnName + "] for all rows.");
             return false;
         }
     }
@@ -1400,7 +1423,7 @@ public Boolean verifyFiledStoreandPopulateValue() {
         try {
             String shadowCssPath = this.getAttributeValue("css");
             if (shadowCssPath == null || shadowCssPath.trim().isEmpty()) {
-                log.info("Shadow CSS path is empty.");
+                driver.getExecutionLogReporter().info("Shadow CSS path is empty.");
                 return false;
             }
             String[] selectors = shadowCssPath.split(">>>");
@@ -1417,9 +1440,9 @@ public Boolean verifyFiledStoreandPopulateValue() {
                     "return true;";
             boolean clicked = Boolean.TRUE.equals(this.driver.executeScript(script, (Object[]) selectors));
             if (!clicked) {
-                log.info("Failed to find/click shadow element: " + shadowCssPath);
+                driver.getExecutionLogReporter().info("Failed to find/click shadow element: " + shadowCssPath);
             } else {
-                log.info("Clicked shadow element: " + shadowCssPath);
+                driver.getExecutionLogReporter().info("Clicked shadow element: " + shadowCssPath);
             }
             return clicked;
         } catch (Exception e) {
@@ -1437,17 +1460,17 @@ public Boolean verifyFiledStoreandPopulateValue() {
         objectRequired = false)
     public boolean waitForAPIJobToSyncData() {
     try {
-        long waitMillis = 4 * 60 * 1000L; // 3 minutes
-        log.info("Pausing execution for 4 minutes...");
+        long waitMillis = 5 * 60 * 1000L; // 3 minutes
+        driver.getExecutionLogReporter().info("Pausing execution for 5 minutes...");
         Thread.sleep(waitMillis);
-        log.info("Resumed after 4 minutes wait.");
+        driver.getExecutionLogReporter().info("Resumed after 5 minutes wait.");
         return true;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            log.info("Wait was interrupted.");
+            driver.getExecutionLogReporter().info("Wait was interrupted.");
             return false;
         } catch (Exception e) {
-            log.info("Error during wait.");
+            driver.getExecutionLogReporter().error("Error during wait.");
             return false;
         }
     }
@@ -1464,7 +1487,7 @@ public Boolean verifyFiledStoreandPopulateValue() {
         try {
             String shadowCssPath = this.getAttributeValue("css");
             if (shadowCssPath == null || shadowCssPath.trim().isEmpty()) {
-                log.info("Shadow CSS path is empty.");
+                driver.getExecutionLogReporter().info("Shadow CSS path is empty.");
                 return false;
             }
 
@@ -1482,11 +1505,11 @@ public Boolean verifyFiledStoreandPopulateValue() {
 
             boolean exists = Boolean.TRUE.equals(this.driver.executeScript(script, (Object[]) selectors));
 
-            log.info("Shadow element [" + shadowCssPath + "] exists = " + exists);
+            driver.getExecutionLogReporter().info("Shadow element [" + shadowCssPath + "] exists = " + exists);
             return exists;
 
         } catch (Exception e) {
-            log.info("Error checking shadow DOM element existence.");
+            driver.getExecutionLogReporter().error("Error checking shadow DOM element existence.");
             return false;
         }
     }
@@ -1503,7 +1526,7 @@ public Boolean verifyFiledStoreandPopulateValue() {
         try {
             String shadowCssPath = this.getAttributeValue("css");
             if (shadowCssPath == null || shadowCssPath.trim().isEmpty()) {
-                log.info("Shadow CSS path is empty.");
+                driver.getExecutionLogReporter().info("Shadow CSS path is empty.");
                 return false;
             }
             if (valueToType == null) {
@@ -1532,13 +1555,13 @@ public Boolean verifyFiledStoreandPopulateValue() {
             args[selectors.length] = valueToType;
             boolean typed = Boolean.TRUE.equals(this.driver.executeScript(script, args));
             if (!typed) {
-                log.info("Failed to type in shadow input: " + shadowCssPath);
+                driver.getExecutionLogReporter().info("Failed to type in shadow input: " + shadowCssPath);
             } else {
-                log.info("Typed [" + valueToType + "] into shadow input: " + shadowCssPath);
+                driver.getExecutionLogReporter().info("Typed [" + valueToType + "] into shadow input: " + shadowCssPath);
             }
             return typed;
         } catch (Exception e) {
-            log.info("Error typing into shadow DOM input.");
+            driver.getExecutionLogReporter().error("Error typing into shadow DOM input.");
             return false;
         }
     }
@@ -1555,11 +1578,11 @@ public Boolean verifyFiledStoreandPopulateValue() {
         try {
             String shadowCssPath = this.getAttributeValue("css");
             if (shadowCssPath == null || shadowCssPath.trim().isEmpty()) {
-                log.info("Shadow CSS path is empty.");
+                driver.getExecutionLogReporter().info("Shadow CSS path is empty.");
                 return false;
             }
             if (valueToSelect == null || valueToSelect.trim().isEmpty()) {
-                log.info("Value to select is empty.");
+                driver.getExecutionLogReporter().info("Value to select is empty.");
                 return false;
             }
             String[] selectors = shadowCssPath.split(">>>");
@@ -1588,7 +1611,7 @@ public Boolean verifyFiledStoreandPopulateValue() {
             System.arraycopy(selectors, 0, args, 0, selectors.length);
             args[selectors.length] = valueToSelect;
             if (!"OK".equals(String.valueOf(this.driver.executeScript(openAndTypeScript, args)))) {
-                log.info("Combobox input not found: " + shadowCssPath);
+                driver.getExecutionLogReporter().info("Combobox input not found: " + shadowCssPath);
                 return false;
             }
             // Click matching option using pointer events (Headless UI listens to these)
@@ -1642,7 +1665,7 @@ public Boolean verifyFiledStoreandPopulateValue() {
             }
             // Fallback — if pointer events didn't take, press Enter on the input
             if (!clicked) {
-                log.info("Pointer click on option failed (" + lastResult + "). Trying Enter key fallback.");
+                driver.getExecutionLogReporter().info("Pointer click on option failed (" + lastResult + "). Trying Enter key fallback.");
                 String enterFallbackScript =
                         "var node = document;" +
                         "for (var i = 0; i < arguments.length; i++) {" +
@@ -1661,13 +1684,13 @@ public Boolean verifyFiledStoreandPopulateValue() {
                 clicked = Boolean.TRUE.equals(this.driver.executeScript(enterFallbackScript, (Object[]) selectors));
             }
             if (!clicked) {
-                log.info("Could not select [" + valueToSelect + "] in combobox: " + shadowCssPath);
+                driver.getExecutionLogReporter().info("Could not select [" + valueToSelect + "] in combobox: " + shadowCssPath);
                 return false;
             }
-            log.info("Selected [" + valueToSelect + "] in combobox: " + shadowCssPath);
+            driver.getExecutionLogReporter().info("Selected [" + valueToSelect + "] in combobox: " + shadowCssPath);
             return true;
         } catch (Exception e) {
-            log.info("Error selecting from shadow combobox.");
+            driver.getExecutionLogReporter().error("Error selecting from shadow combobox.");
             return false;
         }
     }
@@ -1684,7 +1707,7 @@ public Boolean verifyFiledStoreandPopulateValue() {
     public boolean clickSidebarCollapsibleByHeading(String headingText) {
         try {
             if (headingText == null || headingText.trim().isEmpty()) {
-                log.info("Heading text is empty.");
+                driver.getExecutionLogReporter().info("Heading text is empty.");
                 return false;
             }
 
@@ -1716,15 +1739,15 @@ public Boolean verifyFiledStoreandPopulateValue() {
             String result = String.valueOf(this.driver.executeScript(script, headingText));
 
             if ("OK".equals(result)) {
-                log.info("Clicked sidebar collapsible: " + headingText);
+                driver.getExecutionLogReporter().info("Clicked sidebar collapsible: " + headingText);
                 return true;
             }
 
-            log.info("Failed to click collapsible [" + headingText + "]. Reason: " + result);
+            driver.getExecutionLogReporter().info("Failed to click collapsible [" + headingText + "]. Reason: " + result);
             return false;
 
         } catch (Exception e) {
-            log.info("Error clicking sidebar collapsible by heading.");
+            driver.getExecutionLogReporter().error("Error clicking sidebar collapsible by heading.");
             return false;
         }
     }   
@@ -1740,21 +1763,21 @@ public Boolean verifyFiledStoreandPopulateValue() {
     public boolean validateXmlNodeValue(String filePath, String nodeName, String expectedValue) {
         try {
             if (filePath == null || filePath.trim().isEmpty()) {
-                log.info("File path is empty.");
+                driver.getExecutionLogReporter().info("File path is empty.");
                 return false;
             }
             if (nodeName == null || nodeName.trim().isEmpty()) {
-                log.info("Node name is empty.");
+                driver.getExecutionLogReporter().info("Node name is empty.");
                 return false;
             }
             if (expectedValue == null) {
-                log.info("Expected value is null.");
+                driver.getExecutionLogReporter().info("Expected value is null.");
                 return false;
             }
 
             java.io.File xmlFile = new java.io.File(filePath);
             if (!xmlFile.exists() || !xmlFile.isFile()) {
-                log.info("XML file not found: " + filePath);
+                driver.getExecutionLogReporter().info("XML file not found: " + filePath);
                 return false;
             }
 
@@ -1777,7 +1800,7 @@ public Boolean verifyFiledStoreandPopulateValue() {
             }
 
             if (matches.isEmpty()) {
-                log.info("No node found with name [" + nodeName + "] in XML.");
+                driver.getExecutionLogReporter().info("No node found with name [" + nodeName + "] in XML.");
                 return false;
             }
 
@@ -1795,7 +1818,7 @@ public Boolean verifyFiledStoreandPopulateValue() {
                         || valuesMatch(fullText, expectedValue)
                         || valuesMatch(actualWithCurrency, expectedValue)) {
                     String shown = directText.isEmpty() ? fullText : actualWithCurrency;
-                    log.info("Validated [" + nodeName + "] = [" + expectedValue + "] (actual: " + shown + ")");
+                    driver.getExecutionLogReporter().info("Validated [" + nodeName + "] = [" + expectedValue + "] (actual: " + shown + ")");
                     return true;
                 }
             }
@@ -1803,12 +1826,12 @@ public Boolean verifyFiledStoreandPopulateValue() {
             org.w3c.dom.Element first = matches.get(0);
             String firstText = (first.getTextContent() == null ? "" : first.getTextContent()).trim()
                     .replaceAll("\\s+", " ");
-            log.info("Validation failed for [" + nodeName + "]. Expected: [" + expectedValue
+                    driver.getExecutionLogReporter().info("Validation failed for [" + nodeName + "]. Expected: [" + expectedValue
                     + "], Actual (first match): [" + firstText + "]");
             return false;
 
         } catch (Exception e) {
-            log.info("Error validating XML node value.");
+            driver.getExecutionLogReporter().error("Error validating XML node value.");
             return false;
         }
     }
@@ -1859,6 +1882,572 @@ public Boolean verifyFiledStoreandPopulateValue() {
         }
         return null;
     }
+
+
+        @SyncAction(
+            uniqueId = "validate-negative-currency-value",
+            groupName = "Assertions",
+            objectTemplate = @ObjectTemplate(
+                    name = TechnologyType.WEB,
+                    description = "Validate application currency value is negative of the expected input value"
+            )
+        )
+        public boolean validateNegativeCurrencyValue(String expectedPositiveValue) {
+            try {
+                if (expectedPositiveValue == null || expectedPositiveValue.trim().isEmpty()) {
+                    driver.getExecutionLogReporter().info("Expected input value is empty.");
+                    return false;
+                }
+
+                String elementXpath = this.getAttributeValue("xpath");
+                if (elementXpath == null || elementXpath.trim().isEmpty()) {
+                    driver.getExecutionLogReporter().info("Object xpath is empty.");
+                    return false;
+                }
+
+                String script =
+                        "function getElementByXpath(path){return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;}" +
+                        "var el = getElementByXpath(arguments[0]);" +
+                        "if(!el) return '';" +
+                        "var dv = el.getAttribute && el.getAttribute('data-cell-value');" +
+                        "if (dv !== null && dv !== undefined && dv !== '') return dv;" +
+                        "return (el.innerText || el.textContent || '').replace(/\\u00A0/g,' ').replace(/\\s+/g,' ').trim();";
+
+                Object result = this.driver.executeScript(script, elementXpath);
+                if (result == null) {
+                    driver.getExecutionLogReporter().info("Element not found for xpath: " + elementXpath);
+                    return false;
+                }
+
+                String actualText = result.toString().replace('\u00A0', ' ').replaceAll("\\s+", " ").trim();
+                if (actualText.isEmpty()) {
+                    driver.getExecutionLogReporter().info("Actual value from application is empty.");
+                    return false;
+                }
+
+                Double expectedAmount = extractAmount(expectedPositiveValue);
+                Double actualAmount = extractAmount(actualText);
+
+                if (expectedAmount == null) {
+                    driver.getExecutionLogReporter().info("Could not parse expected value: [" + expectedPositiveValue + "]");
+                    return false;
+                }
+
+                if (actualAmount == null) {
+                    driver.getExecutionLogReporter().info("Could not parse actual value: [" + actualText + "]");
+                    return false;
+                }
+
+                // Application value should be negative of input value
+                double expectedNegativeAmount = -Math.abs(expectedAmount);
+                boolean isMatch = Double.compare(actualAmount, expectedNegativeAmount) == 0;
+
+                if (isMatch) {
+                    driver.getExecutionLogReporter().info("Validation passed. Expected negative value: [" + expectedNegativeAmount
+                            + "], Actual: [" + actualAmount + "], Actual text: [" + actualText + "]");
+                    return true;
+                }
+
+                driver.getExecutionLogReporter().info("Validation failed. Input: [" + expectedPositiveValue
+                        + "], Expected app value: [" + expectedNegativeAmount
+                        + "], Actual app value: [" + actualAmount
+                        + "], Actual text: [" + actualText + "]");
+                return false;
+
+            } catch (Exception e) {
+                driver.getExecutionLogReporter().error("Error while validating negative currency value.", e);
+                return false;
+            }
+        }
+
+    private Double extractAmount(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return null;
+        }
+
+        String normalized = text.trim()
+                .replace('\u00A0', ' ')
+                .replaceAll("[A-Za-z]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+
+        // Handle European format like 1.500,00
+        if (normalized.matches("-?\\d{1,3}(\\.\\d{3})*,\\d+")) {
+            normalized = normalized.replace(".", "").replace(",", ".");
+        } else {
+            normalized = normalized.replace(",", "");
+        }
+
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("-?\\d+(?:\\.\\d+)?")
+                .matcher(normalized);
+
+        if (matcher.find()) {
+            try {
+                return Double.parseDouble(matcher.group());
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+    
+    @SyncAction(
+    uniqueId = "Validate-text-from-Print-Preview-PDF",
+    groupName = "Assertions",
+    objectTemplate = @ObjectTemplate(
+            name = TechnologyType.WEB,
+            description = "Validate text from Salesforce PDF Print Preview"),
+    objectRequired = false
+    )
+    // public boolean readPdfFromCurrentBrowser(String pdfUrl, String pageNumber, String valueToBeCompared) throws Exception {
+
+    //     String url = (pdfUrl != null) ? pdfUrl : driver.getCurrentUrl();
+     
+    //     int page;
+    
+    //     try {
+    
+    //         page = Integer.parseInt(pageNumber.trim());
+    
+    //     } catch (NumberFormatException e) {
+    
+    //         throw new IllegalArgumentException(
+    
+    //             "Invalid page number: '" + pageNumber + "'. Must be a whole number.");
+    
+    //     }
+     
+    //     String script =
+    
+    //         "const cb = arguments[arguments.length - 1];" +
+    
+    //         "fetch(arguments[0]).then(r => r.blob()).then(b => {" +
+    
+    //         "    const fr = new FileReader();" +
+    
+    //         "    fr.onload = () => cb(fr.result.substring(fr.result.indexOf(',') + 1));" +
+    
+    //         "    fr.readAsDataURL(b);" +
+    
+    //         "}).catch(e => cb('ERROR:' + e));";
+     
+    //     Object result =  driver.executeAsyncScript(script, url);
+    
+    //     String b64 = String.valueOf(result);
+     
+    //     if (b64.startsWith("ERROR:")) {
+    
+    //         throw new RuntimeException("Failed to fetch PDF: " + b64);
+    
+    //     }
+     
+    //     byte[] pdfBytes = Base64.getDecoder().decode(b64);
+    
+    //     try (PDDocument doc = Loader.loadPDF(pdfBytes)) {
+    
+    //         if (page < 1 || page > doc.getNumberOfPages()) {
+    
+    //             throw new IllegalArgumentException(
+    
+    //                 "Page " + page + " out of range. PDF has "
+    
+    //                 + doc.getNumberOfPages() + " pages.");
+    
+    //         }
+     
+    //         PDFTextStripper stripper = new PDFTextStripper();
+    
+    //         stripper.setStartPage(page);   // read only this page
+    
+    //         stripper.setEndPage(page);
+    
+    //         String pageText = stripper.getText(doc);
+     
+    //         return pageText.contains(valueToBeCompared);
+            
+    //     } catch (Exception e) {
+    //         return false;
+    //         // driver.getExecutionLogReporter(e.getMessage).info("Actual value from application is empty.");
+    //         // TODO: handle exception
+    //     }
+    
+    // }
+    public boolean readPdfFromCurrentBrowser(String pageNumber, String valueToBeCompared) throws Exception {
+        int page = Integer.parseInt(pageNumber.trim());
+ 
+        // Resolve the REAL pdf url: prefer the embed's original-url, not the chrome-extension:// src
+        String url = null;
+        if (url == null || url.isEmpty()) {
+            url = (String) driver.executeScript(
+                "const e = document.querySelector('embed[type=\"application/x-google-chrome-pdf\"]')" +
+                " || document.querySelector('embed[type=\"application/pdf\"]')" +
+                " || document.querySelector('embed');" +
+                "if (!e) return window.location.href;" +
+                "return e.getAttribute('original-url') || e.getAttribute('src');");
+        }
+        System.out.println("Resolved PDF url: " + url);
+     
+        if (url != null && url.startsWith("chrome-extension://")) {
+            throw new RuntimeException(
+                "Got a chrome-extension:// URL — this can't be fetched from page JS. " +
+                "The embed's original-url wasn't found. Check the embed element.");
+        }
+     
+        String script =
+            "const cb = arguments[arguments.length - 1];" +
+            "fetch(arguments[0], {credentials: 'include'}).then(r => {" +
+            "    if (!r.ok) { cb('ERROR:HTTP ' + r.status); return; }" +
+            "    const ct = r.headers.get('content-type') || '';" +
+            "    return r.blob().then(b => ({b, ct}));" +
+            "}).then(o => {" +
+            "    if (!o) return;" +
+            "    const fr = new FileReader();" +
+            "    fr.onload = () => cb(o.ct + '||' + fr.result.substring(fr.result.indexOf(',') + 1));" +
+            "    fr.readAsDataURL(o.b);" +
+            "}).catch(e => cb('ERROR:' + e));";
+     
+        Object result =  driver.executeAsyncScript(script, url);
+        String raw = String.valueOf(result);
+     
+        if (raw.startsWith("ERROR:")) {
+            throw new RuntimeException("Fetch failed: " + raw);
+        }
+     
+        // split off the content-type we prefixed
+        String contentType = raw.substring(0, raw.indexOf("||"));
+        String b64 = raw.substring(raw.indexOf("||") + 2);
+        System.out.println("Content-Type: " + contentType);
+     
+        byte[] pdfBytes = Base64.getDecoder().decode(b64);
+        System.out.println("bytes length: " + pdfBytes.length);
+        System.out.println("header: " + new String(pdfBytes, 0, Math.min(8, pdfBytes.length)));
+     
+        if (pdfBytes.length < 5 || !new String(pdfBytes, 0, 5).equals("%PDF-")) {
+            throw new RuntimeException("Fetched content is NOT a PDF (likely a login/HTML page). " +
+                "Content-Type=" + contentType + ", header=" +
+                new String(pdfBytes, 0, Math.min(80, pdfBytes.length)));
+        }
+     
+        try (PDDocument doc = Loader.loadPDF(pdfBytes)) {   // Loader.loadPDF(pdfBytes) for 3.x
+            if (page < 1 || page > doc.getNumberOfPages()) {
+                throw new IllegalArgumentException("Page " + page + " out of range. PDF has "
+                    + doc.getNumberOfPages() + " pages.");
+            }
+            PDFTextStripper stripper = new PDFTextStripper();
+            stripper.setStartPage(page);
+            stripper.setEndPage(page);
+            return stripper.getText(doc).contains(valueToBeCompared);
+        }
+    }
+
+    @SyncAction(
+        uniqueId = "getAuthenticatedUrlAndStore",
+        groupName = "Web",
+        objectTemplate = @ObjectTemplate(
+                name = TechnologyType.WEB,
+                description = "Get Authenticated URL and Store"
+        ),
+        objectRequired = false
+    )
+    public boolean getAuthenticatedUrlAndStore(String passkey,IArgument defaultUrl) {
+        try{
+            String url = getSalesforceLoginUrl(passkey,defaultUrl.getValue());
+            defaultUrl.updateValue(url);
+            return true;
+        }catch(Exception e){
+            logReporter.error(e.getMessage());
+        }
+        return false;
+       
+    }  
+    
+ 
+    /**
+
+     * Returns the URL the test should launch.
+
+     *
+
+     * @param passKey    the sfdxAuthUrl secret (force://PlatformCLI::...@instance) — from masked testdata
+
+     * @param defaultUrl the org URL to fall back to when no passKey is given (plain launch → login page)
+
+     * @return a freshly minted one-time frontdoor login URL (logged-in launch), or defaultUrl if passKey is blank
+
+     */
+
+    public static String getSalesforceLoginUrl(String passKey, String defaultUrl) throws Exception {
+
+        if (passKey == null || passKey.isBlank()) {
+
+            throw new RuntimeException("Passkey is empty");                                   // no secret → plain launch
+
+        }
+
+        passKey = passKey.trim();
+
+        if (!passKey.startsWith("force://")) {
+
+            throw new RuntimeException("Salesforce passKey must be the sfdxAuthUrl value (starts with force://...)");
+
+        }
+ 
+        // Alias derived from the org instance inside the passKey — QA/TEST/UAT keys
+
+        // each get their own auth entry automatically, no extra parameter needed.
+
+        String instance = passKey.substring(passKey.lastIndexOf('@') + 1);
+
+        String alias = "sqa-" + instance.replaceAll("[^a-zA-Z0-9]", "-");
+ 
+        // (1) once per machine/container: import the auth if this box doesn't know the org yet
+
+        if (run(sf("org", "display", "-o", alias)).exit != 0) {
+
+            Path tmp = Files.createTempFile("sfauth", ".txt");
+
+            try {
+
+                Files.writeString(tmp, passKey, StandardCharsets.UTF_8);
+
+                CmdResult login = run(sf("org", "login", "sfdx-url", "-f", tmp.toString(), "-a", alias));
+
+                if (login.exit != 0) {
+
+                    throw new RuntimeException("Salesforce auth import failed (sf org login sfdx-url): " + login.output);
+
+                }
+
+            } finally {
+
+                Files.deleteIfExists(tmp);                       // never leave the secret on disk
+
+            }
+
+        }
+ 
+        // (2) every browser launch: mint a fresh one-time login link
+
+        CmdResult mint = run(sf("org", "open", "-o", alias, "--url-only", "--json"));
+
+        if (mint.exit != 0) {
+
+            throw new RuntimeException("Salesforce login-URL minting failed (sf org open): " + mint.output);
+
+        }
+
+        String url = JSON.readTree(mint.output).path("result").path("url").asText();
+
+        if (url == null || url.isBlank()) {
+
+            throw new RuntimeException("Could not parse result.url from sf output");
+
+        }
+
+        return url;                                              // NOTE: a live login credential — do not log it
+
+    }
+ 
+    // ---------- helpers ----------
+ 
+    /** Builds the sf command line: SF_CLI_PATH env wins; Windows goes through cmd /c (npm ships sf.cmd). */
+
+   
+    private static String[] sf(String... args) {
+        boolean windows = System.getProperty("os.name").toLowerCase().contains("win");
+        String sfBinary = System.getenv("SF_CLI_PATH");
+        List<String> cmd = new ArrayList<>();
+        if (windows) {
+            cmd.add("cmd");
+            cmd.add("/c");
+            cmd.add(sfBinary != null && !sfBinary.isBlank() ? sfBinary : "sf");
+        } else {
+            if (sfBinary == null || sfBinary.isBlank()) {
+                sfBinary = new File("/usr/local/bin/sf").canExecute() ? "/usr/local/bin/sf" : "sf";
+            }
+            cmd.add(sfBinary);
+        }
+        cmd.addAll(List.of(args));
+        return cmd.toArray(new String[0]);
+    }
+
+    private record CmdResult(int exit, String output) {
+    }
+
+    private static CmdResult run(String[] command) throws Exception {
+        ProcessBuilder pb=new ProcessBuilder(command);
+        pb.environment().put("SF_AUTOUPDATE_DISABLE", "true");
+        pb.environment().put("SF_SKIP_NEW_VERSION_CHECK", "true");
+        Process process = pb.redirectErrorStream(true).start();
+        
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        if (!process.waitFor(120, TimeUnit.SECONDS)) {
+            process.destroyForcibly();
+            return new CmdResult(-1, "sf command timed out: " + String.join(" ", command));
+        }
+        return new CmdResult(process.exitValue(), output);
+    }
+
+ 
+    @SyncAction(uniqueId="EnterTextAndPressEnter", groupName="Web", description="Enter text into an input field and then press the ENTER key", objectTemplate=@ObjectTemplate(name=TechnologyType.WEB, description="This action belongs to WEB"))
+    public boolean EnterTextAndPressEnter(String text) {
+        try {
+            String elementXpath = this.getAttributeValue("xpath");
+            this.driver.findElement(FindBy.xpath((String)elementXpath)).enterText(text);
+            driver.getExecutionLogReporter().info("Entered text: " + text);
+            this.driver.keyboardAction("ENTER");
+            driver.getExecutionLogReporter().info("ENTER key action performed");
+            return true;
+        } catch (Exception e) {
+            driver.getExecutionLogReporter().error("Failed to enter text and press ENTER: " + e.toString());
+            return false;
+        }
+    }
+
+    @SyncAction(uniqueId="NavigateToUrl", groupName="Web", description="Launch a specified URL in the current tab", objectTemplate=@ObjectTemplate(name=TechnologyType.WEB, description="This action belongs to WEB"), objectRequired=false)
+    public boolean navigateToUrl(IArgument url) {
+        try {
+            this.driver.launchApplication(url.getValue());
+            driver.getExecutionLogReporter().info("Navigated to URL in current tab: " + url);
+            return true;
+        } catch (Exception e) {
+            driver.getExecutionLogReporter().error("Failed to navigate to URL: " + url + " - " + e.toString());
+            return false;
+        }
+    }
+
+    @SyncAction(
+        uniqueId = "transfer-file-sftp",
+        groupName = "File Operations",
+        objectTemplate = @ObjectTemplate(
+                name = TechnologyType.WEB,
+                description = "Connect to an SFTP server and transfer a file"
+        )
+)
+    public boolean transferFileSFTP(
+            String host,
+            String port,
+            String username,
+            String password,
+            String localFile,
+            String remoteFile) {
+
+        SSHClient ssh = new SSHClient();
+
+        try {
+            if (host == null || host.trim().isEmpty()) {
+                driver.getExecutionLogReporter().info("SFTP host is empty.");
+                return false;
+            }
+
+            if (port == null || port.trim().isEmpty()) {
+                driver.getExecutionLogReporter().info("SFTP port is empty.");
+                return false;
+            }
+
+            if (username == null || username.trim().isEmpty()) {
+                driver.getExecutionLogReporter().info("SFTP username is empty.");
+                return false;
+            }
+
+            if (password == null || password.trim().isEmpty()) {
+                driver.getExecutionLogReporter().info("SFTP password is empty.");
+                return false;
+            }
+
+            if (localFile == null || localFile.trim().isEmpty()) {
+                driver.getExecutionLogReporter().info("Local file path is empty.");
+                return false;
+            }
+
+            if (remoteFile == null || remoteFile.trim().isEmpty()) {
+                driver.getExecutionLogReporter().info("Remote file path is empty.");
+                return false;
+            }
+
+            java.io.File file = new java.io.File(localFile);
+
+            if (!file.exists()) {
+                driver.getExecutionLogReporter().info(
+                        "Local file does not exist: [" + localFile + "]");
+                return false;
+            }
+
+            if (!file.isFile()) {
+                driver.getExecutionLogReporter().info(
+                        "Local path is not a file: [" + localFile + "]");
+                return false;
+            }
+
+            int sftpPort;
+
+            try {
+                sftpPort = Integer.parseInt(port.trim());
+            } catch (NumberFormatException e) {
+                driver.getExecutionLogReporter().info(
+                        "Invalid SFTP port: [" + port + "]");
+                return false;
+            }
+
+            driver.getExecutionLogReporter().info(
+                    "Connecting to SFTP server: [" + host + ":" + sftpPort + "]");
+
+            /*
+            * For production, use proper host-key verification instead of
+            * accepting all host keys.
+            */
+            ssh.addHostKeyVerifier((hostname, p, key) -> true);
+
+            ssh.connect(host, sftpPort);
+
+            driver.getExecutionLogReporter().info(
+                    "Connected to SFTP server: [" + host + ":" + sftpPort + "]");
+
+            ssh.authPassword(username, password);
+
+            driver.getExecutionLogReporter().info(
+                    "SFTP authentication successful for user: [" + username + "]");
+
+            try (SFTPClient sftp = ssh.newSFTPClient()) {
+
+                driver.getExecutionLogReporter().info(
+                        "Transferring file. Local: [" + localFile
+                                + "], Remote: [" + remoteFile + "]");
+
+                sftp.put(localFile, remoteFile);
+
+                driver.getExecutionLogReporter().info(
+                        "File transferred successfully. Local: [" + localFile
+                                + "], Remote: [" + remoteFile + "]");
+
+                return true;
+            }
+
+        } catch (Exception e) {
+
+            driver.getExecutionLogReporter().error(
+                    "Error while transferring file through SFTP.", e);
+
+            return false;
+
+        } finally {
+
+            try {
+                if (ssh.isConnected()) {
+                    ssh.disconnect();
+
+                    driver.getExecutionLogReporter().info(
+                            "SFTP connection closed.");
+                }
+            } catch (Exception e) {
+                driver.getExecutionLogReporter().error(
+                        "Error while closing SFTP connection.", e);
+            }
+        }
+    }
+
 }
 
     
